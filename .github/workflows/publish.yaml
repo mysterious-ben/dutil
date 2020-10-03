@@ -9,8 +9,8 @@ jobs:
   publish:
     if: github.event_name == 'release'
     name: Publish
-    needs: build
     runs-on: ubuntu-latest
+
     steps:
     - name: Clone repository
       uses: actions/checkout@v2
