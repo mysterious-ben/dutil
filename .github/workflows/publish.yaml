@@ -16,9 +16,10 @@ jobs:
       uses: actions/checkout@v2
       with:
         ref: ${{ github.head_ref }}
-    - name: Set up Python (required to determine version from git ref/hash)
+    - name: Set up python (required to determine version from git ref/hash)
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
-    - name: Set Version (based on commit hash or tag)
+    - name: Set version (based on commit hash or tag)
       id: vars
+      run: echo "::set-output name=version::$(python scripts/version.py)"
