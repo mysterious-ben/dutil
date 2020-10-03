@@ -1,0 +1,24 @@
+name: Publish Python Package
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  publish:
+    if: github.event_name == 'release'
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.head_ref }}
+    - name: Set up Python (required to determine version from git ref/hash)
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Set Version (based on commit hash or tag)
+      id: vars

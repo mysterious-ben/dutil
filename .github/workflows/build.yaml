@@ -1,0 +1,53 @@
+name: Build Python Package
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+    paths-ignore:
+      - README.md
+
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[no-build]')"
+    runs-on: ubuntu-latest
+    name: Build and Test
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8]
+
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.head_ref }}
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Set Version (based on commit hash or tag)
+      id: vars
+      run: echo "::set-output name=version::$(python scripts/version.py)"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Build Python Package
+      run: |
+        echo "Build package version $VERSION"
+        python setup.py sdist
+      env:
+        VERSION: ${{ steps.vars.outputs.version }}
+    - name: Run testsuite
+      run: |
+        pip install pytest
+        pytest -vv
