@@ -3,12 +3,15 @@ Data persist tools
 """
 
 
+import pyarrow
 import pandas as pd
 import dill
 from pathlib import Path
 import itertools
 from typing import *
 from loguru import logger as _logger
+
+_ = pyarrow.__version__  # explicitly show pyarrow dependency
 
 
 def _get_cache_path(name, folder, ftype, load_fun, *args, **kwargs):
