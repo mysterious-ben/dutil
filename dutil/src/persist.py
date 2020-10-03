@@ -51,7 +51,7 @@ def _cached_save(data, ftype, path) -> None:
 def cached(
     name: Optional[str] = None,
     folder: Union[str, Path] = 'cache',
-    ftype: Literal['pickle', 'parquet'] = 'pickle',
+    ftype: str = 'pickle',
     override: bool = False,
     verbose: bool = False,
     logger=None,
@@ -62,6 +62,7 @@ def cached(
         if none, name is constructed from the function name and args
     :param folder: name of the cache folder
     :param ftype: type of the cache file
+        'pickle' | 'parquet'
     :param override: if true, override the existing cache file
     :param verbose: if true, log progress
     :param logger: if none, use a new logger
@@ -91,7 +92,7 @@ def cached(
 def cached_dump(
     name: Optional[str] = None,
     folder: Union[str, Path] = 'cache',
-    ftype: Literal['pickle', 'parquet'] = 'pickle',
+    ftype: str = 'pickle',
     override: bool = False,
     verbose: bool = False,
     logger=None,
@@ -102,6 +103,7 @@ def cached_dump(
         if none, name is constructed from the function name and args
     :param folder: name of the cache folder
     :param ftype: type of the cache file
+        'pickle' | 'parquet'
     :param override: if true, override the existing cache file
     :param verbose: if true, log progress
     :param logger: if none, use a new logger
@@ -129,7 +131,7 @@ def cached_dump(
 def cached_load(
     name: Optional[str] = None,
     folder: Union[str, Path] = 'cache',
-    ftype: Literal['pickle', 'parquet'] = 'pickle',
+    ftype: str = 'pickle',
     verbose: bool = False,
     logger=None,
 ):
@@ -139,6 +141,7 @@ def cached_load(
         if none, name is constructed from the function name and args
     :param folder: name of the cache folder
     :param ftype: type of the cache file
+        'pickle' | 'parquet'
     :param verbose: if true, log progress
     :param logger: if none, use a new logger
     :return: new function
