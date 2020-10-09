@@ -22,6 +22,7 @@ setup(
         'pyarrow',
         'dill',
         'loguru',
+        'ipython',
     ],
     entry_points={'console_scripts': []},
     packages=find_packages(),
