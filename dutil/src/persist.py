@@ -30,7 +30,10 @@ def _hash_obj(obj):
         xxhasher.reset()
     elif isinstance(obj, pd.DataFrame):
         for c in obj:
-            xxhasher.update(obj[c].values.data)
+            try:
+                xxhasher.update(obj[c].values.data)
+            except ValueError:
+                xxhasher.update(obj[c].astype(str).values.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     else:
