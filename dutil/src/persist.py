@@ -164,7 +164,7 @@ def dask_cached(
                 if verbose:
                     logger.info('data has been generated and saved in {}'.format(path))
             else:
-                data = foo()
+                data = foo(*args, **kwargs)
                 dask_args = any(isinstance(a, Delayed) for a in args)
                 dask_kwargs = any(isinstance(v, Delayed) for k, v in kwargs.items())
                 if not dask_args and not dask_kwargs:

@@ -106,7 +106,7 @@ def test_cached_with_arges_kwargs_assert_equal(data, ftype, eps, ts):
 )
 def test_dask_cached_with_arges_kwargs_assert_equal(data, ftype, eps, ts):
     @delayed(pure=False)
-    @cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @dask_cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
