@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import dill
 from pathlib import Path
+import shutil
 import xxhash
 from dask.delayed import Delayed
 from typing import Optional, Union
@@ -115,7 +116,7 @@ def cached(
                 if verbose:
                     logger.info('data has been generated and saved in {}'.format(path))
             else:
-                data = foo()
+                data = foo(*args, **kwargs)
                 _cached_save(data, ftype, path)
                 if verbose:
                     logger.info('data has been loaded from {}'.format(path))
@@ -173,3 +174,15 @@ def dask_cached(
             return data
         return new_load_fun
     return decorator
+
+
+def clear_cache(
+    folder: Union[str, Path] = 'cache',
+    ignore_errors: bool = True,
+):
+    """Clear the cache folder
+
+     :param folder: name of the cache folder
+    """
+    folder = Path(folder).absolute()
+    shutil.rmtree(folder, ignore_errors=ignore_errors)
