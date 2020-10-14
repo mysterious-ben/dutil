@@ -8,7 +8,7 @@ import pandas as pd
 import dill
 from pathlib import Path
 import itertools
-from typing import *
+from typing import Optional, Union
 from loguru import logger as _logger
 
 _ = pyarrow.__version__  # explicitly show pyarrow dependency
