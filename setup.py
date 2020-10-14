@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 PATH = pathlib.Path(__file__).parent
 VERSION = os.getenv('VERSION', 'dev')
-LONG_DESCRIPTION = (PATH/"README.md").read_text()
+LONG_DESCRIPTION = (PATH / "README.md").read_text()
 
 setup(
     name='dutil',
@@ -22,6 +22,8 @@ setup(
         'pyarrow',
         'dill',
         'loguru',
+        'xxhash',
+        'dask[delayed]',
         'ipython',
     ],
     entry_points={'console_scripts': []},
