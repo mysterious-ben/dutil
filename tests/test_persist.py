@@ -2,9 +2,10 @@ import pytest
 import numpy as np
 import pandas as pd
 import datetime as dt
+import time
 from dask import delayed
 
-from dutil.src.persist import cached, dask_cached, clear_cache
+from dutil.src.persist import cached, cached2, clear_cache
 
 cache_dir = 'cache/temp/'
 
@@ -203,8 +204,8 @@ def test_cached_with_chained_df_assert_equal(data, output, ftype):
     ]
 )
 def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
-    @delayed(pure=False)
-    @dask_cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @delayed()
+    @cached2(folder=cache_dir, ftype=ftype, override=False, verbose=True)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
@@ -213,7 +214,7 @@ def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
     clear_cache(cache_dir)
     r = load_data(eps, ts=ts)
     _ = r.compute()
-    loaded = r.compute()
+    loaded = r.compute().get_cache()
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -223,3 +224,44 @@ def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
         np.testing.assert_equal(loaded, data)
     else:
         assert loaded == data
+
+
+def test_cached_load_time():
+    @cached(folder=cache_dir, override=False, verbose=True)
+    def load_data():
+        time.sleep(1)
+        return 1
+
+    clear_cache(cache_dir)
+
+    start = dt.datetime.utcnow()
+    _ = load_data()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    _ = load_data()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
+
+
+def test_dask_cached_load_time():
+    @delayed()
+    @cached2(folder=cache_dir, override=False, verbose=True)
+    def load_data():
+        time.sleep(1)
+        return 1
+
+    clear_cache(cache_dir)
+
+    start = dt.datetime.utcnow()
+    r = load_data()
+    r.compute()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    r = load_data()
+    r.compute()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
