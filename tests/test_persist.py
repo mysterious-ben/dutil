@@ -61,7 +61,7 @@ cache_dir = 'cache/temp/'
     ]
 )
 def test_cached_assert_equal(data, ftype):
-    @cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
 
@@ -111,7 +111,7 @@ def test_cached_assert_equal(data, ftype):
     ]
 )
 def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
-    @cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
@@ -169,11 +169,11 @@ def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
     ]
 )
 def test_cached_with_chained_df_assert_equal(data, output, ftype):
-    @cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
     
-    @cached(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def process_data(df):
         return df.dropna()
 
@@ -205,7 +205,7 @@ def test_cached_with_chained_df_assert_equal(data, output, ftype):
 )
 def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
     @delayed()
-    @cached2(folder=cache_dir, ftype=ftype, override=False, verbose=True)
+    @cached2(folder=cache_dir, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
@@ -227,7 +227,7 @@ def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
 
 
 def test_cached_load_time():
-    @cached(folder=cache_dir, override=False, verbose=True)
+    @cached(folder=cache_dir, override=False)
     def load_data():
         time.sleep(1)
         return 1
@@ -247,7 +247,7 @@ def test_cached_load_time():
 
 def test_dask_cached_load_time():
     @delayed()
-    @cached2(folder=cache_dir, override=False, verbose=True)
+    @cached2(folder=cache_dir, override=False)
     def load_data():
         time.sleep(1)
         return 1

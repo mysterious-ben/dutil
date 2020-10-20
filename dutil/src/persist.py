@@ -92,7 +92,6 @@ def cached(
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     override: bool = False,
-    verbose: bool = False,
     logger=None,
 ):
     """Cache function output on the disk
@@ -111,7 +110,6 @@ def cached(
     :param ftype: type of the cache file
         'pickle' | 'parquet'
     :param override: if true, override the existing cache file
-    :param verbose: if true, log progress
     :param logger: if none, use a new logger
     :return: new function
         output is loaded from cache file if it exists, generated otherwise
@@ -126,16 +124,14 @@ def cached(
                                    folder, ftype, foo, args, kwargs)
             if not override and path.exists():
                 data = _cached_load(ftype, path)
-                if verbose:
-                    logger.info('data has been loaded from {}'.format(path))
+                logger.debug('data has been loaded from {}'.format(path))
             else:
                 data = foo(*args, **kwargs)
                 dask_args_detected = any(isinstance(a, Delayed) for a in args)
                 dask_kwargs_detected = any(isinstance(v, Delayed) for k, v in kwargs.items())
                 if not dask_args_detected and not dask_kwargs_detected:
                     _cached_save(data, ftype, path)
-                if verbose:
-                    logger.info('data has been generated and saved in {}'.format(path))
+                logger.debug('data has been generated and saved in {}'.format(path))
             return data
         return new_foo
     return decorator
@@ -150,11 +146,13 @@ class CacheMeta:
 
     def __init__(
         self,
+        name: str,
         meta_path: Union[str, Path],
         cache_path: Union[str, Path],
         ftype: str,
         hash_value: Optional[str]
     ):
+        self.name = name
         self.meta_path = Path(meta_path)
         self.cache_path = Path(cache_path)
         self.ftype = ftype
@@ -176,24 +174,28 @@ class CachedResult:
     """Lazy loader for cache data"""
 
     def __init__(self, name, name_prefix, parameters, ignore_args_kwargs,
-                 folder, ftype, foo, args, kwargs):
+                 folder, ftype, foo, args, kwargs, logger):
         cache_path = _get_cache_path(name, name_prefix, parameters, ignore_args_kwargs,
                                      folder, ftype, foo, args, kwargs)
         meta_path = _get_meta_path(cache_path)
+        name = cache_path.name
         if meta_path.exists():
             self.meta = CacheMeta.from_file(meta_path)
         else:
-            self.meta = CacheMeta(meta_path, cache_path, ftype, hash_value=None)
+            self.meta = CacheMeta(name, meta_path, cache_path, ftype, hash_value=None)
         self._cache_value = None
+        self.logger = logger
 
     def get_cache(self):
         if self._cache_value is None:
             self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
+            self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
         return self._cache_value
 
     def save_cache(self, data):
         self._cache_value = data
         _cached_save(data, self.meta.ftype, self.meta.cache_path)
+        self.logger.debug('Task {}: data has been saved to cache'.format(self.meta.name))
         self.meta.dump_to_file()
 
     def get_hash(self):
@@ -207,6 +209,7 @@ class CachedResult:
             cache_obj = self.get_cache()
             self.meta.hash_value = _hash_obj(cache_obj)
             self.meta.dump_to_file()
+            self.logger.debug('Task {}: hash has been computed from data'.format(self.meta.name))
         return self.meta.hash_value
 
     def exists(self):
@@ -221,7 +224,6 @@ def cached2(
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     override: bool = False,
-    verbose: bool = False,
     logger=None,
 ):
     """Cache function output on the disk (advanced version)
@@ -239,7 +241,6 @@ def cached2(
     :param ftype: type of the cache file
         'pickle' | 'parquet'
     :param override: if true, override the existing cache file
-    :param verbose: if true, log progress
     :param logger: if none, use a new logger
     :return: new function
         output is loaded from cache file if it exists, generated otherwise
@@ -253,11 +254,12 @@ def cached2(
         def new_foo(*args, **kwargs):
             result = CachedResult(name, name_prefix, parameters,
                                   ignore_args_kwargs,
-                                  folder, ftype, foo, args, kwargs)
+                                  folder, ftype, foo, args, kwargs,
+                                  logger=logger)
             if not override and result.exists():
                 # if the result (= cache OR cache + hash) exists, do nothing - just pass it on
                 # the cache will be loaded only if required later
-                pass
+                logger.info('Task {}: skip (cache exists)'.format(result.meta.name))
             else:
                 # if the result does not exist, generate data and save cache
                 dask_args_detected = any(isinstance(a, Delayed) for a in args)
@@ -268,6 +270,7 @@ def cached2(
                     kwargs = {k: v.get_cache() if isinstance(v, CachedResult) else v for k, v in kwargs.items()}
                     data = foo(*args, **kwargs)
                     result.save_cache(data)
+                    logger.info('Task {}: data has been computed and saved to cache'.format(result.meta.name))
                 else:
                     # if any of the arguments is a Delayed object, return anything
                     result = foo(*args, **kwargs)

@@ -14,7 +14,6 @@ def cached_delayed(
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     override: bool = False,
-    verbose: bool = False,
     logger=None,
 ):
     """cached2 + dask.delayed
@@ -31,7 +30,6 @@ def cached_delayed(
             folder=folder,
             ftype=ftype,
             override=override,
-            verbose=verbose,
             logger=logger,
         )(foo)
         new_foo = dask.delayed()(cached_foo)
