@@ -11,6 +11,6 @@ dist/
 
 cache/
 notebooks/
+.ipynb_checkpoints/
 *.pickle
 *.parquet
-.ipynb_checkpoints/

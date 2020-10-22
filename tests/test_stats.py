@@ -1,9 +1,8 @@
 import pytest
 import numpy as np
 import pandas as pd
-import datetime as dt
 
-from dutil.src.stats import mean_upper, mean_lower
+from dutil.stats import mean_upper, mean_lower
 
 
 @pytest.mark.parametrize(
