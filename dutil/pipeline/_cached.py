@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 import xxhash
 from dask.delayed import Delayed
-from typing import Optional, Union
+from typing import Optional, Union, List
 from loguru import logger as _logger
 import json
 import warnings
@@ -43,22 +43,30 @@ def _hash_obj(obj):
     return h
 
 
-def _get_cache_path(name, name_prefix, parameters, ignore_args_kwargs,
+def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
                     folder, ftype, foo, args, kwargs) -> Path:
     path = Path(folder)
-    if ignore_args_kwargs is None:
-        ignore_args_kwargs = (parameters is not None)
+    if ignore_args is None:
+        ignore_args = parameters is not None
+    if ignore_kwargs is None:
+        ignore_kwargs = parameters is not None
     if name is None:
-        _n = [foo.__name__, ]
-        if parameters is not None:
-            _n.extend([str(k) + _hash_obj(v) for k, v in parameters.items()])
-        if not ignore_args_kwargs:
-            _n.extend([_hash_obj(a) for a in args])
-            _n.extend([str(k) + _hash_obj(v) for k, v in kwargs.items()])
-        name = '_'.join(_n) + '.' + ftype
+        name = foo.__name__
+    _n = [name]
+    if parameters is not None:
+        _n.extend([str(k) + _hash_obj(v) for k, v in parameters.items()])
+    if not ignore_args:
+        _n.extend([_hash_obj(a) for a in args])
+    if not ignore_kwargs:
+        _n.extend([str(k) + _hash_obj(v) for k, v in kwargs.items()])
+    elif isinstance(ignore_kwargs, list) or isinstance(ignore_kwargs, set):
+        _n.extend([str(k) + _hash_obj(v) for k, v in kwargs.items() if k not in ignore_kwargs])
+    else:
+        assert isinstance(ignore_kwargs, bool)
+    full_name = '_'.join(_n) + '.' + ftype
     if name_prefix is not None:
-        name = name_prefix + '__' + name
-    path = path / name
+        full_name = name_prefix + '__' + full_name
+    path = path / full_name
     return path
 
 
@@ -86,7 +94,8 @@ def cached0(
     name: Optional[str] = None,
     name_prefix: Optional[str] = None,
     parameters: Optional[dict] = None,
-    ignore_args_kwargs: Optional[bool] = None,
+    ignore_args: Optional[bool] = None,
+    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     override: bool = False,
@@ -101,9 +110,9 @@ def cached0(
     :param name: name of the cache file
         if none, name is constructed from the function name and args
     :param parameters: include these parameters in the name
-        only meaningful when `name=None`
-    :param ignore_args_kwargs: if true, do not add args and kwargs to the name
-        only meaningful when `name=None`
+    :param ignore_args: if true, do not add args to the name
+    :param ignore_kwargs: if true, do not add kwargs to the name
+        it's also possible to specify a list of kwargs to ignore
     :param folder: name of the cache folder
     :param ftype: type of the cache file
         'pickle' | 'parquet'
@@ -119,7 +128,8 @@ def cached0(
     def decorator(foo):
         @functools.wraps(foo)
         def new_foo(*args, **kwargs):
-            path = _get_cache_path(name, name_prefix, parameters, ignore_args_kwargs,
+            path = _get_cache_path(name, name_prefix, parameters,
+                                   ignore_args, ignore_kwargs,
                                    folder, ftype, foo, args, kwargs)
             if not override and path.exists():
                 data = _cached_load(ftype, path)
@@ -172,9 +182,10 @@ class CacheMeta:
 class CachedResult:
     """Lazy loader for cache data"""
 
-    def __init__(self, name, name_prefix, parameters, ignore_args_kwargs,
+    def __init__(self, name, name_prefix, parameters, ignore_args, ignore_kwargs,
                  folder, ftype, foo, args, kwargs, logger):
-        cache_path = _get_cache_path(name, name_prefix, parameters, ignore_args_kwargs,
+        cache_path = _get_cache_path(name, name_prefix, parameters,
+                                     ignore_args, ignore_kwargs,
                                      folder, ftype, foo, args, kwargs)
         meta_path = _get_meta_path(cache_path)
         name = cache_path.name
@@ -223,7 +234,8 @@ def cached(
     name: Optional[str] = None,
     name_prefix: Optional[str] = None,
     parameters: Optional[dict] = None,
-    ignore_args_kwargs: Optional[bool] = None,
+    ignore_args: Optional[bool] = None,
+    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     override: bool = False,
@@ -241,8 +253,9 @@ def cached(
         if none, name is constructed from the function name and args
     :param parameters: include these parameters in the name
         only meaningful when `name=None`
-    :param ignore_args_kwargs: if true, do not add args and kwargs to the name
-        only meaningful when `name=None`
+    :param ignore_args: if true, do not add args to the name
+    :param ignore_kwargs: if true, do not add kwargs to the name
+        it's also possible to specify a list of kwargs to ignore
     :param folder: name of the cache folder
     :param ftype: type of the cache file
         'pickle' | 'parquet'
@@ -259,7 +272,7 @@ def cached(
         @functools.wraps(foo)
         def new_foo(*args, **kwargs):
             result = CachedResult(name, name_prefix, parameters,
-                                  ignore_args_kwargs,
+                                  ignore_args, ignore_kwargs,
                                   folder, ftype, foo, args, kwargs,
                                   logger=logger)
             if not override and result.exists():

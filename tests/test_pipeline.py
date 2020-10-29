@@ -5,7 +5,7 @@ import datetime as dt
 import time
 from dask import delayed
 
-from dutil.pipeline import cached0, cached, clear_cache, cached_delayed, DelayedParameters, dask_compute
+from dutil.pipeline import cached, clear_cache, cached_delayed, DelayedParameters, dask_compute
 
 
 cache_dir = 'cache/temp/'
@@ -63,13 +63,13 @@ eps = 0.00001
     ]
 )
 def test_cached_assert_equal(data, ftype):
-    @cached0(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
 
     clear_cache(cache_dir)
-    _ = load_data()
-    loaded = load_data()
+    _ = load_data().load()
+    loaded = load_data().load()
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -113,15 +113,15 @@ def test_cached_assert_equal(data, ftype):
     ]
 )
 def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
-    @cached0(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
         return data
 
     clear_cache(cache_dir)
-    _ = load_data(eps, ts=ts)
-    loaded = load_data(eps, ts=ts)
+    _ = load_data(eps, ts=ts).load()
+    loaded = load_data(eps, ts=ts).load()
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -171,20 +171,20 @@ def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
     ]
 )
 def test_cached_with_chained_df_assert_equal(data, output, ftype):
-    @cached0(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
     
-    @cached0(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=cache_dir, ftype=ftype, override=False)
     def process_data(df):
         return df.dropna()
 
     clear_cache(cache_dir)
     df = load_data()
-    _ = process_data(df)
+    _ = process_data(df).load()
 
     df = load_data()
-    processed = process_data(df)
+    processed = process_data(df).load()
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(processed, output)
@@ -228,8 +228,35 @@ def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
         assert loaded == data
 
 
+def test_cached_with_args_kwargs_partial_ignore():
+    @cached(folder=cache_dir, ignore_kwargs=['ts'])
+    def load_data(eps, ts):
+        time.sleep(1.)
+        assert eps > 0
+        assert ts > pd.Timestamp('2000-01-01')
+        return eps
+
+    clear_cache(cache_dir)
+    start = dt.datetime.utcnow()
+    res1 = load_data(eps=0.1, ts=pd.Timestamp('2010-01-01')).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    res2 = load_data(eps=0.1, ts=pd.Timestamp('2012-01-01')).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
+    assert res1 == res2
+
+    start = dt.datetime.utcnow()
+    res3 = load_data(eps=0.2, ts=pd.Timestamp('2012-01-01')).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+    assert res1 != res3
+
+
 def test_cached_load_time():
-    @cached0(folder=cache_dir, override=False)
+    @cached(folder=cache_dir, override=False)
     def load_data():
         time.sleep(1)
         return 1
@@ -237,12 +264,12 @@ def test_cached_load_time():
     clear_cache(cache_dir)
 
     start = dt.datetime.utcnow()
-    _ = load_data()
+    _ = load_data().load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay > 0.95
 
     start = dt.datetime.utcnow()
-    _ = load_data()
+    _ = load_data().load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
 
