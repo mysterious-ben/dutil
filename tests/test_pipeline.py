@@ -5,7 +5,7 @@ import datetime as dt
 import time
 from dask import delayed
 
-from dutil.pipeline import cached, clear_cache, cached_delayed, DelayedParameters, dask_compute
+from dutil.pipeline import cached, clear_cache, DelayedParameters, dask_compute
 
 
 cache_dir = 'cache/temp/'
@@ -299,17 +299,20 @@ def test_dask_cached_load_time():
 def test_dask_pipeline():
     clear_cache(cache_dir)
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def load_data_1():
         time.sleep(1)
         return 5
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def load_data_2():
         time.sleep(1)
         return 3
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def add(x, y):
         return x + y
 
@@ -333,18 +336,21 @@ def test_dask_pipeline():
 def test_dask_pipeline_with_parameters():
     clear_cache(cache_dir)
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         time.sleep(1)
         return 5
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def load_data_2(eps: float):
         time.sleep(1)
         return 3 + eps
 
-    @cached_delayed(folder=cache_dir)
+    @delayed()
+    @cached(folder=cache_dir)
     def add(x, y):
         return x + y
 

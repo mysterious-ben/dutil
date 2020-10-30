@@ -1,42 +1,7 @@
-from pathlib import Path
 import dask
 from dask.delayed import Delayed
-from typing import Optional, Union, List
 
-from dutil.pipeline import cached, CachedResult
-
-
-def cached_delayed(
-    name: Optional[str] = None,
-    name_prefix: Optional[str] = None,
-    parameters: Optional[dict] = None,
-    ignore_args: Optional[bool] = None,
-    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
-    folder: Union[str, Path] = 'cache',
-    ftype: str = 'pickle',
-    override: bool = False,
-    logger=None,
-):
-    """cached + dask.delayed
-    
-    Returns Delayed object with smart output caching
-    """
-
-    def decorator(foo):
-        cached_foo = cached(
-            name=name,
-            name_prefix=name_prefix,
-            parameters=parameters,
-            ignore_args=ignore_args,
-            ignore_kwargs=ignore_kwargs,
-            folder=folder,
-            ftype=ftype,
-            override=override,
-            logger=logger,
-        )(foo)
-        new_foo = dask.delayed()(cached_foo)
-        return new_foo
-    return decorator
+from dutil.pipeline import CachedResult
 
 
 class DelayedParameter:

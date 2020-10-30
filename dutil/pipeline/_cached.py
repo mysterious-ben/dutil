@@ -12,7 +12,6 @@ from dask.delayed import Delayed
 from typing import Optional, Union, List
 from loguru import logger as _logger
 import json
-import warnings
 
 _ = pyarrow.__version__  # explicitly show pyarrow dependency
 
@@ -44,7 +43,7 @@ def _hash_obj(obj):
 
 
 def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
-                    folder, ftype, foo, args, kwargs) -> Path:
+                    folder, ftype, kwargs_sep, foo, args, kwargs) -> Path:
     path = Path(folder)
     if ignore_args is None:
         ignore_args = parameters is not None
@@ -54,13 +53,14 @@ def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
         name = foo.__name__
     _n = [name]
     if parameters is not None:
-        _n.extend([str(k) + _hash_obj(v) for k, v in parameters.items()])
+        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in parameters.items()])
     if not ignore_args:
         _n.extend([_hash_obj(a) for a in args])
     if not ignore_kwargs:
-        _n.extend([str(k) + _hash_obj(v) for k, v in kwargs.items()])
+        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()])
     elif isinstance(ignore_kwargs, list) or isinstance(ignore_kwargs, set):
-        _n.extend([str(k) + _hash_obj(v) for k, v in kwargs.items() if k not in ignore_kwargs])
+        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()
+                   if k not in ignore_kwargs])
     else:
         assert isinstance(ignore_kwargs, bool)
     full_name = '_'.join(_n) + '.' + ftype
@@ -88,62 +88,6 @@ def _cached_save(data, ftype, path) -> None:
         dill.dump(data, open(path, 'wb'))
     else:
         raise ValueError('ftype {} is not recognized'.format(ftype))
-
-
-def cached0(
-    name: Optional[str] = None,
-    name_prefix: Optional[str] = None,
-    parameters: Optional[dict] = None,
-    ignore_args: Optional[bool] = None,
-    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
-    folder: Union[str, Path] = 'cache',
-    ftype: str = 'pickle',
-    override: bool = False,
-    logger=None,
-):
-    """Cache function output on the disk
-
-    Features:
-    - Pickle and parquet serialization
-    - Special treatment for Delayed objects
-
-    :param name: name of the cache file
-        if none, name is constructed from the function name and args
-    :param parameters: include these parameters in the name
-    :param ignore_args: if true, do not add args to the name
-    :param ignore_kwargs: if true, do not add kwargs to the name
-        it's also possible to specify a list of kwargs to ignore
-    :param folder: name of the cache folder
-    :param ftype: type of the cache file
-        'pickle' | 'parquet'
-    :param override: if true, override the existing cache file
-    :param logger: if none, use a new logger
-    :return: new function
-        output is loaded from cache file if it exists, generated otherwise
-    """
-
-    warnings.warn('This function will be depreciated', category=DeprecationWarning)
-    logger = logger if logger is not None else _logger
-
-    def decorator(foo):
-        @functools.wraps(foo)
-        def new_foo(*args, **kwargs):
-            path = _get_cache_path(name, name_prefix, parameters,
-                                   ignore_args, ignore_kwargs,
-                                   folder, ftype, foo, args, kwargs)
-            if not override and path.exists():
-                data = _cached_load(ftype, path)
-                logger.debug('data has been loaded from {}'.format(path))
-            else:
-                data = foo(*args, **kwargs)
-                dask_args_detected = any(isinstance(a, Delayed) for a in args)
-                dask_kwargs_detected = any(isinstance(v, Delayed) for k, v in kwargs.items())
-                if not dask_args_detected and not dask_kwargs_detected:
-                    _cached_save(data, ftype, path)
-                logger.debug('data has been generated and saved in {}'.format(path))
-            return data
-        return new_foo
-    return decorator
 
 
 def _get_meta_path(cache_path: Path) -> Path:
@@ -183,10 +127,10 @@ class CachedResult:
     """Lazy loader for cache data"""
 
     def __init__(self, name, name_prefix, parameters, ignore_args, ignore_kwargs,
-                 folder, ftype, foo, args, kwargs, logger):
+                 folder, ftype, kwargs_sep, foo, args, kwargs, logger):
         cache_path = _get_cache_path(name, name_prefix, parameters,
                                      ignore_args, ignore_kwargs,
-                                     folder, ftype, foo, args, kwargs)
+                                     folder, ftype, kwargs_sep, foo, args, kwargs)
         meta_path = _get_meta_path(cache_path)
         name = cache_path.name
         if meta_path.exists():
@@ -238,6 +182,7 @@ def cached(
     ignore_kwargs: Optional[Union[bool, List[str]]] = None,
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
+    kwargs_sep: str = '',
     override: bool = False,
     logger=None,
 ):
@@ -259,6 +204,7 @@ def cached(
     :param folder: name of the cache folder
     :param ftype: type of the cache file
         'pickle' | 'parquet'
+    :param kwargs_sep: string separating a keyword parameter and its value
     :param override: if true, override the existing cache file
     :param logger: if none, use a new logger
     :return: new function
@@ -273,7 +219,8 @@ def cached(
         def new_foo(*args, **kwargs):
             result = CachedResult(name, name_prefix, parameters,
                                   ignore_args, ignore_kwargs,
-                                  folder, ftype, foo, args, kwargs,
+                                  folder, ftype, kwargs_sep,
+                                  foo, args, kwargs,
                                   logger=logger)
             if not override and result.exists():
                 # if the result (= cache OR cache + hash) exists, do nothing - just pass it on
