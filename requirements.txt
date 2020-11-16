@@ -1,9 +1,11 @@
-loguru==0.5.0
-pytest==5.4.2
-dask[delayed]==2.29.0
 pandas==1.0.4
-pyarrow==1.0.1
 numpy==1.18.4
+dask==2.29.0
 dill==0.3.2
-ipython==7.18.1
+pyarrow==1.0.1
+pytest==5.4.2
+loguru==0.5.0
+fuzzywuzzy==0.18.0
 xxhash==2.0.0
+ipython==7.19.0
+python_Levenshtein==0.12.0
