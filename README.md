@@ -14,3 +14,4 @@ pip install dutil
 - `pipeline` (data caching and pipelines)
 - `stats` (statistical functions)
 - `transform` (data transformations)
+- `string` (string manipulations)
