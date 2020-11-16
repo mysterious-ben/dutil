@@ -25,6 +25,8 @@ setup(
         'xxhash',
         'dask[delayed]',
         'ipython',
+        'fuzzywuzzy',
+        'python_Levenshtein',
     ],
     entry_points={'console_scripts': []},
     packages=find_packages(),
@@ -42,6 +44,7 @@ setup(
     setup_requires=[
         'pytest-runner',
         'setuptools',
+        'wheel',
     ],
     tests_require=[
         'pytest',
