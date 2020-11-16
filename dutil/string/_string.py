@@ -25,9 +25,7 @@ def _translate(x: str):
     if x.startswith('the '):
         x = x[4:] + ' the'
     x = x.strip()
-    for k, v in _abbr_dict.items():
-        if x == k:
-            x = v
+    x = _abbr_dict.get(x, x)
     return x
 
 
