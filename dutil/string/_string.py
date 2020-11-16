@@ -3,16 +3,18 @@ from fuzzywuzzy import fuzz
 
 _translation_table = dict.fromkeys(map(ord, r".,`'!@#$()=^"), None)
 _replace_dict = {
-    'incorporated': 'inc',
-    'corporation': 'corp',
-    'company': 'co',
-    'limited': 'ltd',
+    ' incorporated': ' inc',
+    ' corporation': ' corp',
+    ' company': ' co',
+    ' limited': ' ltd',
     ' and': ' &',
+    ' corp': ' inc',
+    ' ltd': ' inc',
+    ' llc': ' inc',
+    ' plc': ' inc',
+}
+_abbr_dict = {
     'hp': 'hewlettpackard',
-    ' corp' : ' inc',
-    ' ltd' : ' inc',
-    ' llc' : ' inc',
-    ' plc' : ' inc',
 }
 
 
@@ -23,6 +25,9 @@ def _translate(x: str):
     if x.startswith('the '):
         x = x[4:] + ' the'
     x = x.strip()
+    for k, v in _abbr_dict.items():
+        if x == k:
+            x = v
     return x
 
 
