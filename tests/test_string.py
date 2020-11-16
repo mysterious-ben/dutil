@@ -14,7 +14,9 @@ eps = 0.00001
         ('Apple Inc.', 'Apple Limited', 1.),
         ('Apple Inc.', 'Apple', 1.),
         ('Aarons Holdings Company Inc.', "Aaron's, Inc.", .7),
-        ('The Tea Company', 'Tea Company (the)', 1.0),
+        ('The Tea Company', 'Tea Company (the)', 1.),
+        ('HP', 'Hewlett-Packard', 1.),
+        ('HP', 'HewlettPackard', .93),
     ]
 )
 def test_compare_companies(name_1: str, name_2: str, rating: float):

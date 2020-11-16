@@ -14,7 +14,7 @@ _replace_dict = {
     ' plc': ' inc',
 }
 _abbr_dict = {
-    'hp': 'hewlettpackard',
+    'hp': 'hewlett-packard',
 }
 
 
