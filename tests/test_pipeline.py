@@ -5,7 +5,7 @@ import datetime as dt
 import time
 from dask import delayed
 
-from dutil.pipeline import cached, clear_cache, DelayedParameters, dask_compute
+from dutil.pipeline import cached, clear_cache, DelayedParameters, DelayedParameter, delayed_compute
 
 
 cache_dir = 'cache/temp/'
@@ -321,13 +321,13 @@ def test_dask_pipeline():
     r = add(d1, d2)
 
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
     assert output == 8
 
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
     assert output == 8
@@ -362,26 +362,153 @@ def test_dask_pipeline_with_parameters():
     r = add(d1, d2)
 
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
     assert abs(output - 8.5) < eps
 
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
     assert abs(output - 8.5) < eps
 
     params.update_many({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5})
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
     assert abs(output - 9.5) < eps
 
     start = dt.datetime.utcnow()
-    (output,) = dask_compute((r,))
+    (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
     assert abs(output - 9.5) < eps
+
+
+def test_dask_pipeline_with_parameters_context():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_1(ts: dt.datetime):
+        assert ts > dt.datetime(2019, 1, 1)
+        return 5
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_2(eps: float):
+        return 3 + eps
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def add(x, y):
+        return x + y
+
+    params = DelayedParameters()
+    ts = params.new('ts', value=dt.datetime(2020, 1, 1))
+    fix = params.new('fix', value=0.5)
+    d1 = load_data_1(ts)
+    d2 = load_data_2(fix)
+    r = add(d1, d2)
+
+    (output,) = delayed_compute((r,))
+    assert abs(output - 8.5) < eps
+
+    with params.context({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5}):
+        (output,) = delayed_compute((r,))
+        assert abs(output - 9.5) < eps
+
+    (output,) = delayed_compute((r,))
+    assert abs(output - 8.5) < eps
+
+
+def test_dask_pipeline_with_parameters_2():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_1(ts: dt.datetime):
+        assert ts > dt.datetime(2019, 1, 1)
+        time.sleep(1)
+        return 5
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_2(eps: float):
+        time.sleep(1)
+        return 3 + eps
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def add(x, y):
+        return x + y
+
+    ts = DelayedParameter('ts', value=dt.datetime(2020, 1, 1))
+    fix = DelayedParameter('fix', value=0.5)
+    d1 = load_data_1(ts())
+    d2 = load_data_2(fix())
+    r = add(d1, d2)
+
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert 0.95 < delay < 1.95
+    assert abs(output - 8.5) < eps
+
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
+    assert abs(output - 8.5) < eps
+
+    ts.set(dt.datetime(2020, 2, 1))
+    fix.set(1.5)
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert 0.95 < delay < 1.95
+    assert abs(output - 9.5) < eps
+
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
+    assert abs(output - 9.5) < eps
+
+
+def test_dask_pipeline_with_parameters_2_context():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_1(ts: dt.datetime):
+        assert ts > dt.datetime(2019, 1, 1)
+        return 5
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_2(eps: float):
+        return 3 + eps
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def add(x, y):
+        return x + y
+
+    ts = DelayedParameter('ts', value=dt.datetime(2020, 1, 1))
+    fix = DelayedParameter('fix', value=0.5)
+    d1 = load_data_1(ts())
+    d2 = load_data_2(fix())
+    r = add(d1, d2)
+
+    (output,) = delayed_compute((r,))
+    assert abs(output - 8.5) < eps
+
+    with ts.context(dt.datetime(2020, 2, 1)), fix.context(1.5):
+        (output,) = delayed_compute((r,))
+        assert abs(output - 9.5) < eps
+
+    (output,) = delayed_compute((r,))
+    assert abs(output - 8.5) < eps
