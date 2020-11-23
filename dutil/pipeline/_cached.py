@@ -182,7 +182,7 @@ def cached(
     ignore_kwargs: Optional[Union[bool, List[str]]] = None,
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
-    kwargs_sep: str = '',
+    kwargs_sep: str = '|',
     override: bool = False,
     logger=None,
 ):
