@@ -46,13 +46,9 @@ class DelayedParameters():
     Important! Methods `update` and `context` do not work with dask distributed.
     """
 
-    def __init__(self, params: Optional[dict] = None):
+    def __init__(self):
         self._params = {}
         self._param_delayed = {}
-        if params is not None:
-            for name, value in params.items():
-                self._params[name] = value
-                self._param_delayed[name] = dask.delayed(name=name)(lambda: self._params[name])()
         self._lock = multiprocessing.Lock()
     
     def create(self, name: str, value: Any = None) -> Delayed:
