@@ -129,7 +129,9 @@ class CacheMeta:
             fields['cache_path'] = Path(fields['cache_path'])
         else:
             fields['cache_path'] = tuple(Path(cp) for cp in fields['cache_path'])
-            fields['hash_value'] = tuple(fields['hash_value'])
+        for k, v in fields.items():
+            if isinstance(v, list):
+                fields[k] = tuple(v)
         return cls(**fields)
 
     def dump_to_file(self):
