@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import multiprocessing
 from typing import Any, Optional
 
-from dutil.pipeline import CachedResult
+from dutil.pipeline import CachedResultItem
 from dutil.pipeline._cached import _kw_is_private
 
 
@@ -100,5 +100,5 @@ class DelayedParameters():
 def delayed_compute(tasks, scheduler='threads') -> tuple:
     """Compute values of Delayed objects or load it from cache"""
     results = dask.compute(*tasks, scheduler=scheduler)
-    datas = tuple(r.load() if isinstance(r, CachedResult) else r for r in results)
+    datas = tuple(r.load() if isinstance(r, CachedResultItem) else r for r in results)
     return datas

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pyarrow
 import functools
 # from contextlib import contextmanager
@@ -9,9 +11,9 @@ from pathlib import Path
 import shutil
 import xxhash
 from dask.delayed import Delayed
-from typing import Optional, Union, List
 from loguru import logger as _logger
 import json
+from typing import Optional, Union, List, Tuple, Any
 
 _ = pyarrow.__version__  # explicitly show pyarrow dependency
 
@@ -19,8 +21,8 @@ xxhasher = xxhash.xxh64(seed=42)
 
 
 def _hash_obj(obj):
-    if isinstance(obj, CachedResult):
-        h = obj.get_hash()
+    if hasattr(obj, '__cached_hash__'):
+        h = obj.__cached_hash__()
     elif isinstance(obj, np.ndarray):
         xxhasher.update(obj.data)
         h = str(xxhasher.intdigest())
@@ -46,7 +48,8 @@ def _kw_is_private(k: str) -> bool:
     return k.startswith('_')
 
 
-def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
+def _get_cache_path(name, name_prefix,
+                    parameters, ignore_args, ignore_kwargs,
                     folder, ftype, kwargs_sep, foo, args, kwargs) -> Path:
     path = Path(folder)
     if ignore_args is None:
@@ -69,9 +72,7 @@ def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
                    if k not in ignore_kwargs])
     else:
         assert isinstance(ignore_kwargs, bool)
-    full_name = '_'.join(_n) + '.' + ftype
-    if name_prefix is not None:
-        full_name = name_prefix + '__' + full_name
+    full_name = name_prefix + '_'.join(_n) + '.' + ftype
     path = path / full_name
     return path
 
@@ -106,26 +107,39 @@ class CacheMeta:
     def __init__(
         self,
         name: str,
-        meta_path: Union[str, Path],
-        cache_path: Union[str, Path],
+        meta_path: Union[Path],
+        cache_path: Union[Path, Tuple[Path]],
         ftype: str,
-        hash_value: Optional[str]
+        nout: Optional[int],
+        hash_value: Optional[str],
     ):
         self.name = name
-        self.meta_path = Path(meta_path)
-        self.cache_path = Path(cache_path)
+        self.meta_path = meta_path
+        self.cache_path = cache_path
         self.ftype = ftype
+        self.nout = nout
         self.hash_value = hash_value
 
     @classmethod
     def from_file(cls, meta_path: Path):
         with open(meta_path, 'rt') as f:
             fields = json.load(f)
+        fields['meta_path'] = Path(fields['meta_path'])
+        if fields['nout'] is None:
+            fields['cache_path'] = Path(fields['cache_path'])
+        else:
+            fields['cache_path'] = tuple(Path(cp) for cp in fields['cache_path'])
+            fields['hash_value'] = tuple(fields['hash_value'])
         return cls(**fields)
 
     def dump_to_file(self):
         with open(self.meta_path, 'wt') as f:
-            fields = {k: str(v) for k, v in self.__dict__.items()}
+            fields = dict(**self.__dict__)
+            fields['meta_path'] = str(fields['meta_path'])
+            if self.nout is None:
+                fields['cache_path'] = str(fields['cache_path'])
+            else:
+                fields['cache_path'] = [str(cp) for cp in fields['cache_path']]
             json.dump(fields, f)
 
 
@@ -133,36 +147,47 @@ class CachedResult:
     """Lazy loader for cache data"""
 
     def __init__(self, name, name_prefix, parameters, ignore_args, ignore_kwargs,
-                 folder, ftype, kwargs_sep, foo, args, kwargs, logger):
-        cache_path = _get_cache_path(name, name_prefix, parameters,
-                                     ignore_args, ignore_kwargs,
-                                     folder, ftype, kwargs_sep, foo, args, kwargs)
-        meta_path = _get_meta_path(cache_path)
-        name = cache_path.name
+                 folder, ftype, kwargs_sep, foo, args, kwargs, logger, nout):
+        cp = _get_cache_path(name, name_prefix, parameters,
+                             ignore_args, ignore_kwargs,
+                             folder, ftype, kwargs_sep, foo, args, kwargs)
+        meta_path = _get_meta_path(cp)
+        name = cp.name
+        if nout is not None:
+            cp = tuple(cp.parent / (cp.stem + f'__{i}' + cp.suffix) for i in range(nout))
         if meta_path.exists():
             self.meta = CacheMeta.from_file(meta_path)
         else:
-            self.meta = CacheMeta(name, meta_path, cache_path, ftype, hash_value=None)
+            self.meta = CacheMeta(name, meta_path, cp, ftype, nout, hash_value=None)
         self._cache_value = None
         self.logger = logger
+        self._item = None
 
-    def load(self):
+    def load(self) -> Any:
         """Load data from cache"""
 
         if self._cache_value is None:
-            self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
+            if self.meta.nout is None:
+                self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
+            else:
+                self._cache_value = tuple(_cached_load(self.meta.ftype, cp) for cp in self.meta.cache_path)
             self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
         return self._cache_value
 
     def dump(self, data):
-        """Dump data to cache"""
+        """Update and dump data to cache"""
 
         self._cache_value = data
-        _cached_save(data, self.meta.ftype, self.meta.cache_path)
+        if self.meta.nout is None:
+            _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
+        else:
+            assert(len(self._cache_value) == len(self.meta.cache_path) == self.meta.nout)
+            for cv, cp in zip(self._cache_value, self.meta.cache_path):
+                _cached_save(cv, self.meta.ftype, cp)
         self.logger.debug('Task {}: data has been saved to cache'.format(self.meta.name))
         self.meta.dump_to_file()
 
-    def get_hash(self):
+    def __cached_hash__(self):
         """Get hash of cached data
 
         Used to construct a cache file name
@@ -171,24 +196,49 @@ class CachedResult:
         # Hash may not be required, so it's not automatically computed from data
         if self.meta.hash_value is None:
             cache_obj = self.load()
-            self.meta.hash_value = _hash_obj(cache_obj)
+            if self.meta.nout is None:
+                self.meta.hash_value = _hash_obj(cache_obj)
+            else:
+                self.meta.hash_value = tuple(_hash_obj(co) for co in cache_obj)
             self.meta.dump_to_file()
             self.logger.debug('Task {}: hash has been computed from data'.format(self.meta.name))
         return self.meta.hash_value
 
     def exists(self):
-        return self.meta.cache_path.exists() and self.meta.meta_path.exists()
+        return self.meta.meta_path.exists()
+
+
+class CachedResultItem:
+    def __init__(self, result: CachedResult, item: Any):
+        self.result = result
+        self.item = item
+    
+    def load(self) -> Any:
+        if self.item is None:
+            return self.result.load()
+        else:
+            return self.result.load()[self.item]
+
+    def dump(self, data):
+        self.result.dump(data)
+
+    def __cached_hash__(self):
+        if self.item is None:
+            return self.result.__cached_hash__()
+        else:
+            return self.result.__cached_hash__()[self.item]
 
 
 def cached(
     name: Optional[str] = None,
-    name_prefix: Optional[str] = None,
+    name_prefix: str = '',
     parameters: Optional[dict] = None,
     ignore_args: Optional[bool] = None,
     ignore_kwargs: Optional[Union[bool, List[str]]] = None,
     folder: Union[str, Path] = 'cache',
     ftype: str = 'pickle',
     kwargs_sep: str = '|',
+    nout: Optional[int] = None,
     override: bool = False,
     logger=None,
 ):
@@ -229,10 +279,14 @@ def cached(
                                   ignore_args, ignore_kwargs,
                                   folder, ftype, kwargs_sep,
                                   foo, args, kwargs,
-                                  logger=logger)
+                                  logger, nout)
             if not override and result.exists():
                 # if the result (= cache OR cache + hash) exists, do nothing - just pass it on
                 # the cache will be loaded only if required later
+                if nout is not None:
+                    output = tuple(CachedResultItem(result, i) for i in range(nout))
+                else:
+                    output = CachedResultItem(result, None)
                 logger.info('Task {}: skip (cache exists)'.format(result.meta.name))
             else:
                 # if the result does not exist, generate data and save cache
@@ -240,15 +294,19 @@ def cached(
                 dask_kwargs_detected = any(isinstance(v, Delayed) for k, v in kwargs.items())
                 if not dask_args_detected and not dask_kwargs_detected:
                     # eager load cache for all arguments
-                    args = [a.load() if isinstance(a, CachedResult) else a for a in args]
-                    kwargs = {k: v.load() if isinstance(v, CachedResult) else v for k, v in kwargs.items()}
+                    args = [a.load() if isinstance(a, CachedResultItem) else a for a in args]
+                    kwargs = {k: v.load() if isinstance(v, CachedResultItem) else v for k, v in kwargs.items()}
                     data = foo(*args, **kwargs)
                     result.dump(data)
+                    if nout is not None:
+                        output = tuple(CachedResultItem(result, i) for i in range(nout))
+                    else:
+                        output = CachedResultItem(result, None)
                     logger.info('Task {}: data has been computed and saved to cache'.format(result.meta.name))
                 else:
                     # if any of the arguments is a Delayed object, return anything
-                    result = foo(*args, **kwargs)
-            return result
+                    output = foo(*args, **kwargs)
+            return output
         return new_foo
     return decorator
 

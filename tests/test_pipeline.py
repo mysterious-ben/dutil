@@ -552,3 +552,38 @@ def test_dask_pipeline_with_parameters_2_context():
 
     (output,) = delayed_compute((r,))
     assert abs(output - 8.5) < eps
+
+
+def test_dask_pipeline_multiple_outputs():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data():
+        # time.sleep(1)
+        return [1, 1, 1, 2, 2, 2]
+
+    @delayed(nout=2)
+    @cached(folder=cache_dir, nout=2)
+    def split_data(data):
+        return data[:3], data[3:]
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def compute_sum(arr):
+        # time.sleep(1)
+        return sum(arr)
+
+    data = load_data()
+    x, y = split_data(data)
+    xsum = compute_sum(x)
+    ysum = compute_sum(y)
+
+    # start = dt.datetime.utcnow()
+    (x_, y_, xsum_, ysum_) = delayed_compute((x, y, xsum, ysum))
+    # delay = (dt.datetime.utcnow() - start).total_seconds()
+    # assert 0.95 < delay < 1.95
+    assert x_ == [1, 1, 1]
+    assert y_ == [2, 2, 2]
+    assert xsum_ == 3
+    assert ysum_ == 6
