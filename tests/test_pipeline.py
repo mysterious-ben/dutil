@@ -345,9 +345,9 @@ def test_dask_pipeline_with_parameters():
 
     @delayed()
     @cached(folder=cache_dir)
-    def load_data_2(eps: float):
+    def load_data_2(fix: float):
         time.sleep(1)
-        return 3 + eps
+        return 3 + fix
 
     @delayed()
     @cached(folder=cache_dir)
@@ -398,8 +398,8 @@ def test_dask_pipeline_with_parameters_context():
 
     @delayed()
     @cached(folder=cache_dir)
-    def load_data_2(eps: float):
-        return 3 + eps
+    def load_data_2(fix: float):
+        return 3 + fix
 
     @delayed()
     @cached(folder=cache_dir)
@@ -424,6 +424,46 @@ def test_dask_pipeline_with_parameters_context():
     assert abs(output - 8.5) < eps
 
 
+def test_dask_pipeline_with_parameters_private():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_1(_ts: dt.datetime):
+        time.sleep(1)
+        assert _ts > dt.datetime(2019, 1, 1)
+        return 5
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_2(fix: float):
+        time.sleep(1)
+        return 3 + fix
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def add(x, y):
+        return x + y
+
+    params = DelayedParameters()
+    _ts = params.create('_ts', value=dt.datetime(2020, 1, 1))
+    fix = params.create('fix', value=0.5)
+    d1 = load_data_1(_ts=_ts)
+    d2 = load_data_2(fix=fix)
+    r = add(d1, d2)
+
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert 0.95 < delay < 1.95
+
+    with params.context({'_ts': dt.datetime(2020, 2, 1)}):
+        start = dt.datetime.utcnow()
+        (output,) = delayed_compute((r,))
+        delay = (dt.datetime.utcnow() - start).total_seconds()
+        assert delay < 0.95
+
+
 def test_dask_pipeline_with_parameters_2():
     clear_cache(cache_dir)
 
@@ -436,9 +476,9 @@ def test_dask_pipeline_with_parameters_2():
 
     @delayed()
     @cached(folder=cache_dir)
-    def load_data_2(eps: float):
+    def load_data_2(fix: float):
         time.sleep(1)
-        return 3 + eps
+        return 3 + fix
 
     @delayed()
     @cached(folder=cache_dir)
@@ -489,8 +529,8 @@ def test_dask_pipeline_with_parameters_2_context():
 
     @delayed()
     @cached(folder=cache_dir)
-    def load_data_2(eps: float):
-        return 3 + eps
+    def load_data_2(fix: float):
+        return 3 + fix
 
     @delayed()
     @cached(folder=cache_dir)

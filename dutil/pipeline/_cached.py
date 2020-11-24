@@ -42,6 +42,10 @@ def _hash_obj(obj):
     return h
 
 
+def _kw_is_private(k: str) -> bool:
+    return k.startswith('_')
+
+
 def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
                     folder, ftype, kwargs_sep, foo, args, kwargs) -> Path:
     path = Path(folder)
@@ -53,11 +57,13 @@ def _get_cache_path(name, name_prefix, parameters, ignore_args, ignore_kwargs,
         name = foo.__name__
     _n = [name]
     if parameters is not None:
-        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in parameters.items()])
+        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in parameters.items()
+                   if not _kw_is_private(k)])
     if not ignore_args:
         _n.extend([_hash_obj(a) for a in args])
     if not ignore_kwargs:
-        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()])
+        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()
+                   if not _kw_is_private(k)])
     elif isinstance(ignore_kwargs, list) or isinstance(ignore_kwargs, set):
         _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()
                    if k not in ignore_kwargs])
@@ -198,9 +204,11 @@ def cached(
         if none, name is constructed from the function name and args
     :param parameters: include these parameters in the name
         only meaningful when `name=None`
+        Improtant: parameters starting with _ (underscore) will be ignored
     :param ignore_args: if true, do not add args to the name
     :param ignore_kwargs: if true, do not add kwargs to the name
         it's also possible to specify a list of kwargs to ignore
+        Improtant: kwargs starting with _ (underscore) will be ignored
     :param folder: name of the cache folder
     :param ftype: type of the cache file
         'pickle' | 'parquet'

@@ -5,6 +5,7 @@ import multiprocessing
 from typing import Any, Optional
 
 from dutil.pipeline import CachedResult
+from dutil.pipeline._cached import _kw_is_private
 
 
 class DelayedParameter:
@@ -69,7 +70,7 @@ class DelayedParameters():
 
     def get_params(self) -> dict:
         """Get parameters as a dictionary (name -> value)"""
-        return self._params
+        return {k: v for k, v in self._params.items if not _kw_is_private(k)}
 
     def get_delayed(self, name: str) -> Delayed:
         """Get a Delayed object for the chosen parameter"""
