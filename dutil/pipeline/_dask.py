@@ -2,6 +2,7 @@ import dask
 from dask.delayed import Delayed
 from contextlib import contextmanager
 import multiprocessing
+from typing import Any, Optional
 
 from dutil.pipeline import CachedResult
 
@@ -17,7 +18,7 @@ class DelayedParameter:
     def __init__(self, name, value=None):
         self._name = name
         self._value = value
-        self._delayed = dask.delayed(lambda: self._value)()
+        self._delayed = dask.delayed(name=name)(lambda: self._value)()
         self._lock = multiprocessing.Lock()
         
     def set(self, value) -> None:
@@ -44,16 +45,16 @@ class DelayedParameters():
     Important! Methods `update` and `context` do not work with dask distributed.
     """
 
-    def __init__(self):
+    def __init__(self, params: Optional[dict] = None):
         self._params = {}
         self._param_delayed = {}
+        if params is not None:
+            for name, value in params.items():
+                self._params[name] = value
+                self._param_delayed[name] = dask.delayed(name=name)(lambda: self._params[name])()
         self._lock = multiprocessing.Lock()
     
-    def get_params(self):
-        """Get parameters as a dictionary"""
-        return self._params
-
-    def new(self, name: str, value=None) -> Delayed:
+    def create(self, name: str, value: Any = None) -> Delayed:
         """Create a new parameter and return a delayed object"""
         if name in self._params:
             raise KeyError(f'Parameter {name} already exists')
@@ -61,7 +62,20 @@ class DelayedParameters():
         self._param_delayed[name] = dask.delayed(name=name)(lambda: self._params[name])()
         return self._param_delayed[name]
 
-    def update(self, name: str, value) -> None:
+    def create_many(self, d: dict) -> None:
+        """Create multiple parameters at once"""
+        for k, v in d.items():
+            self.create(k, v)
+
+    def get_params(self) -> dict:
+        """Get parameters as a dictionary (name -> value)"""
+        return self._params
+
+    def get_delayed(self, name: str) -> Delayed:
+        """Get a Delayed object for the chosen parameter"""
+        return self._param_delayed[name]
+
+    def update(self, name: str, value: Any) -> None:
         """Permanently update parameter value"""
         if name not in self._params:
             raise KeyError(f'Parameter {name} does not exist')
