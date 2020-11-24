@@ -355,8 +355,8 @@ def test_dask_pipeline_with_parameters():
         return x + y
 
     params = DelayedParameters()
-    ts = params.new('ts', value=dt.datetime(2020, 1, 1))
-    fix = params.new('fix', value=0.5)
+    ts = params.create('ts', value=dt.datetime(2020, 1, 1))
+    fix = params.create('fix', value=0.5)
     d1 = load_data_1(ts)
     d2 = load_data_2(fix)
     r = add(d1, d2)
@@ -407,8 +407,8 @@ def test_dask_pipeline_with_parameters_context():
         return x + y
 
     params = DelayedParameters()
-    ts = params.new('ts', value=dt.datetime(2020, 1, 1))
-    fix = params.new('fix', value=0.5)
+    ts = params.create('ts', value=dt.datetime(2020, 1, 1))
+    fix = params.create('fix', value=0.5)
     d1 = load_data_1(ts)
     d2 = load_data_2(fix)
     r = add(d1, d2)
