@@ -13,6 +13,7 @@ import xxhash
 from dask.delayed import Delayed
 from loguru import logger as _logger
 import json
+import multiprocessing
 from typing import Optional, Union, List, Tuple, Any
 
 _ = pyarrow.__version__  # explicitly show pyarrow dependency
@@ -171,28 +172,31 @@ class CachedResult:
         self.meta = meta
         self.logger = logger
         self._cache_value = None
+        self._lock = multiprocessing.Lock()
 
     def load(self) -> Any:
         """Load data from cache"""
 
         if self._cache_value is None:
-            if self.meta.nout is None:
-                self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
-            else:
-                self._cache_value = tuple(_cached_load(self.meta.ftype, cp) for cp in self.meta.cache_path)
-            self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
+            with self._lock:
+                if self.meta.nout is None:
+                    self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
+                else:
+                    self._cache_value = tuple(_cached_load(self.meta.ftype, cp) for cp in self.meta.cache_path)
+                self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
         return self._cache_value
 
     def dump(self, data):
         """Update and dump data to cache"""
 
-        self._cache_value = data
-        if self.meta.nout is None:
-            _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
-        else:
-            assert(len(self._cache_value) == len(self.meta.cache_path) == self.meta.nout)
-            for cv, cp in zip(self._cache_value, self.meta.cache_path):
-                _cached_save(cv, self.meta.ftype, cp)
+        with self._lock:
+            self._cache_value = data
+            if self.meta.nout is None:
+                _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
+            else:
+                assert(len(self._cache_value) == len(self.meta.cache_path) == self.meta.nout)
+                for cv, cp in zip(self._cache_value, self.meta.cache_path):
+                    _cached_save(cv, self.meta.ftype, cp)
         self.logger.debug('Task {}: data has been saved to cache'.format(self.meta.name))
         self.meta.dump_to_file()
 
@@ -204,12 +208,13 @@ class CachedResult:
 
         # Hash may not be required, so it's not automatically computed from data
         if self.meta.hash_value is None:
-            cache_obj = self.load()
-            if self.meta.nout is None:
-                self.meta.hash_value = _hash_obj(cache_obj)
-            else:
-                self.meta.hash_value = tuple(_hash_obj(co) for co in cache_obj)
-            self.meta.dump_to_file()
+            with self._lock:
+                cache_obj = self.load()
+                if self.meta.nout is None:
+                    self.meta.hash_value = _hash_obj(cache_obj)
+                else:
+                    self.meta.hash_value = tuple(_hash_obj(co) for co in cache_obj)
+                self.meta.dump_to_file()
             self.logger.debug('Task {}: hash has been computed from data'.format(self.meta.name))
         return self.meta.hash_value
 
