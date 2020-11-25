@@ -3,6 +3,7 @@ from dask.delayed import Delayed
 from contextlib import contextmanager
 from pathlib import Path
 import multiprocessing
+import functools
 from typing import Any, Optional, Union, List
 
 from dutil.pipeline._cached import CachedResultItem, cached, _kw_is_private
@@ -127,6 +128,7 @@ def delayed_cached(
             override=override,
             logger=logger,
         )
+        @functools.wraps(foo)
         def new_foo(*args, **kwargs):
             return foo(*args, **kwargs)
         return new_foo
