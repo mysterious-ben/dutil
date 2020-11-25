@@ -1,16 +1,17 @@
 import dask
 from dask.delayed import Delayed
 from contextlib import contextmanager
+from pathlib import Path
 import multiprocessing
-from typing import Any, Optional
+import functools
+from typing import Any, Optional, Union, List
 
-from dutil.pipeline import CachedResultItem
-from dutil.pipeline._cached import _kw_is_private
+from dutil.pipeline._cached import CachedResultItem, cached, _kw_is_private
 
 
 class DelayedParameter:
     """Delayed parameter = a Delayed object that can change the returned value
-    
+
     Important! Methods `update` and `context` do not work with dask distributed.
 
     :param name: parameter name
@@ -21,11 +22,11 @@ class DelayedParameter:
         self._value = value
         self._delayed = dask.delayed(name=name)(lambda: self._value)()
         self._lock = multiprocessing.Lock()
-        
+
     def set(self, value) -> None:
         """Permanently change the value of this parameter"""
         self._value = value
-        
+
     def __call__(self) -> Delayed:
         """Get a Delayed object"""
         return self._delayed
@@ -42,7 +43,7 @@ class DelayedParameter:
 
 class DelayedParameters():
     """A dictionary of delayed parameters
-    
+
     Important! Methods `update` and `context` do not work with dask distributed.
     """
 
@@ -50,7 +51,7 @@ class DelayedParameters():
         self._params = {}
         self._param_delayed = {}
         self._lock = multiprocessing.Lock()
-    
+
     def create(self, name: str, value: Any = None) -> Delayed:
         """Create a new parameter and return a delayed object"""
         if name in self._params:
@@ -91,6 +92,46 @@ class DelayedParameters():
             self.update_many(d)
             yield
             self.update_many(old_params)
+
+
+def delayed_cached(
+    name: Optional[str] = None,
+    name_prefix: str = '',
+    parameters: Optional[dict] = None,
+    ignore_args: Optional[bool] = None,
+    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
+    folder: Union[str, Path] = 'cache',
+    ftype: str = 'pickle',
+    kwargs_sep: str = '|',
+    nout: Optional[int] = None,
+    override: bool = False,
+    logger=None,
+):
+    """Delayed and cache function output on the disk (dask.delayed + dutil.pipeline.cached)
+    
+    Parameters: see dutil.pipeline.cached"""
+
+    def decorator(foo):
+        """Delay and cache function output on disk (dask.delayed + dutil.pipeline.cached)"""
+        # @functools.wraps(foo)  # Can't use: Delayed objects are immutable
+        @dask.delayed(name=name, pure=False, nout=nout)
+        @cached(
+            name=name,
+            name_prefix=name_prefix,
+            parameters=parameters,
+            ignore_args=ignore_args,
+            ignore_kwargs=ignore_kwargs,
+            folder=folder,
+            ftype=ftype,
+            kwargs_sep=kwargs_sep,
+            nout=nout,
+            override=override,
+            logger=logger,
+        )
+        def new_foo(*args, **kwargs):
+            return foo(*args, **kwargs)
+        return new_foo
+    return decorator
 
 
 def delayed_compute(tasks, scheduler='threads') -> tuple:

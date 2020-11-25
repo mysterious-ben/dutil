@@ -148,22 +148,29 @@ class CacheMeta:
 class CachedResult:
     """Lazy loader for cache data"""
 
-    def __init__(self, name, name_prefix, parameters, ignore_args, ignore_kwargs,
-                 folder, ftype, kwargs_sep, foo, args, kwargs, logger, nout):
-        cp = _get_cache_path(name, name_prefix, parameters,
-                             ignore_args, ignore_kwargs,
-                             folder, ftype, kwargs_sep, foo, args, kwargs)
+    @classmethod
+    def from_user(cls, name, name_prefix, parameters, ignore_args, ignore_kwargs,
+                  folder, ftype, kwargs_sep, foo, args, kwargs, logger, nout):
+        cp = _get_cache_path(
+            name=name, name_prefix=name_prefix, parameters=parameters,
+            ignore_args=ignore_args, ignore_kwargs=ignore_kwargs,
+            folder=folder, ftype=ftype, kwargs_sep=kwargs_sep,
+            foo=foo, args=args, kwargs=kwargs,
+        )
         meta_path = _get_meta_path(cp)
         name = cp.name
         if nout is not None:
             cp = tuple(cp.parent / (cp.stem + f'__{i}' + cp.suffix) for i in range(nout))
         if meta_path.exists():
-            self.meta = CacheMeta.from_file(meta_path)
+            meta = CacheMeta.from_file(meta_path)
         else:
-            self.meta = CacheMeta(name, meta_path, cp, ftype, nout, hash_value=None)
-        self._cache_value = None
+            meta = CacheMeta(name, meta_path, cp, ftype, nout, hash_value=None)
+        return cls(meta=meta, logger=logger)
+
+    def __init__(self, meta, logger):
+        self.meta = meta
         self.logger = logger
-        self._item = None
+        self._cache_value = None
 
     def load(self) -> Any:
         """Load data from cache"""
@@ -244,7 +251,7 @@ def cached(
     override: bool = False,
     logger=None,
 ):
-    """Cache function output on the disk (advanced version)
+    """Cache function output on the disk
 
     Features:
     - Pickle and parquet serialization
@@ -275,13 +282,13 @@ def cached(
     logger = logger if logger is not None else _logger
 
     def decorator(foo):
+        """Cache function output on the disk"""
         @functools.wraps(foo)
         def new_foo(*args, **kwargs):
-            result = CachedResult(name, name_prefix, parameters,
-                                  ignore_args, ignore_kwargs,
-                                  folder, ftype, kwargs_sep,
-                                  foo, args, kwargs,
-                                  logger, nout)
+            result = CachedResult.from_user(
+                name, name_prefix, parameters, ignore_args, ignore_kwargs,
+                folder, ftype, kwargs_sep, foo, args, kwargs, logger, nout
+            )
             if not override and result.exists():
                 # if the result (= cache OR cache + hash) exists, do nothing - just pass it on
                 # the cache will be loaded only if required later
@@ -293,7 +300,7 @@ def cached(
             else:
                 # if the result does not exist, generate data and save cache
                 dask_args_detected = any(isinstance(a, Delayed) for a in args)
-                dask_kwargs_detected = any(isinstance(v, Delayed) for k, v in kwargs.items())
+                dask_kwargs_detected = any(isinstance(v, Delayed) for _, v in kwargs.items())
                 if not dask_args_detected and not dask_kwargs_detected:
                     # eager load cache for all arguments
                     args = [a.load() if isinstance(a, CachedResultItem) else a for a in args]

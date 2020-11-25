@@ -5,7 +5,7 @@ import datetime as dt
 import time
 from dask import delayed
 
-from dutil.pipeline import cached, clear_cache, DelayedParameters, DelayedParameter, delayed_compute
+from dutil.pipeline import cached, clear_cache, DelayedParameters, DelayedParameter, delayed_cached, delayed_compute
 
 
 cache_dir = 'cache/temp/'
@@ -625,3 +625,24 @@ def test_dask_pipeline_multiple_outputs():
     assert y_ == [2, 2, 2]
     assert xsum_ == 3
     assert ysum_ == 6
+
+
+def test_delayed_cached_load_time():
+    @delayed_cached(folder=cache_dir, override=False)
+    def load_data():
+        time.sleep(1)
+        return 1
+
+    clear_cache(cache_dir)
+
+    start = dt.datetime.utcnow()
+    r = load_data()
+    r.compute()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    r = load_data()
+    r.compute()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
