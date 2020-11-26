@@ -21,10 +21,8 @@ _ = pyarrow.__version__  # explicitly show pyarrow dependency
 xxhasher = xxhash.xxh64(seed=42)
 
 
-def _hash_obj(obj):
-    if hasattr(obj, '__cached_hash__'):
-        h = obj.__cached_hash__()
-    elif isinstance(obj, np.ndarray):
+def _hash_obj(obj) -> str:
+    if isinstance(obj, np.ndarray):
         xxhasher.update(obj.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
@@ -45,6 +43,14 @@ def _hash_obj(obj):
     return h
 
 
+def _hash_obj_cached(obj) -> str:
+    if hasattr(obj, '__cached_hash__'):
+        h = obj.__cached_hash__()
+    else:
+        h = _hash_obj(obj)
+    return h
+
+
 def _kw_is_private(k: str) -> bool:
     return k.startswith('_')
 
@@ -61,15 +67,15 @@ def _get_cache_path(name, name_prefix,
         name = foo.__name__
     _n = [name]
     if parameters is not None:
-        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in parameters.items()
+        _n.extend([str(k) + kwargs_sep + _hash_obj_cached(v) for k, v in parameters.items()
                    if not _kw_is_private(k)])
     if not ignore_args:
-        _n.extend([_hash_obj(a) for a in args])
+        _n.extend([_hash_obj_cached(a) for a in args])
     if not ignore_kwargs:
-        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()
+        _n.extend([str(k) + kwargs_sep + _hash_obj_cached(v) for k, v in kwargs.items()
                    if not _kw_is_private(k)])
     elif isinstance(ignore_kwargs, list) or isinstance(ignore_kwargs, set):
-        _n.extend([str(k) + kwargs_sep + _hash_obj(v) for k, v in kwargs.items()
+        _n.extend([str(k) + kwargs_sep + _hash_obj_cached(v) for k, v in kwargs.items()
                    if k not in ignore_kwargs])
     else:
         assert isinstance(ignore_kwargs, bool)
@@ -172,24 +178,25 @@ class CachedResult:
         self.meta = meta
         self.logger = logger
         self._cache_value = None
-        self._lock = multiprocessing.Lock()
+        self._lock_dump_load = multiprocessing.Lock()
+        self._lock_hash = multiprocessing.Lock()
 
     def load(self) -> Any:
         """Load data from cache"""
 
         if self._cache_value is None:
-            with self._lock:
+            with self._lock_dump_load:
                 if self.meta.nout is None:
                     self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
                 else:
                     self._cache_value = tuple(_cached_load(self.meta.ftype, cp) for cp in self.meta.cache_path)
-                self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
+            self.logger.debug('Task {}: data has been loaded from cache'.format(self.meta.name))
         return self._cache_value
 
     def dump(self, data):
         """Update and dump data to cache"""
 
-        with self._lock:
+        with self._lock_dump_load:
             self._cache_value = data
             if self.meta.nout is None:
                 _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
@@ -208,8 +215,8 @@ class CachedResult:
 
         # Hash may not be required, so it's not automatically computed from data
         if self.meta.hash_value is None:
-            with self._lock:
-                cache_obj = self.load()
+            with self._lock_hash:
+                cache_obj = self.load()  # activates _lock_dump_load
                 if self.meta.nout is None:
                     self.meta.hash_value = _hash_obj(cache_obj)
                 else:

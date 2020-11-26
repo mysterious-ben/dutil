@@ -21,7 +21,7 @@ class DelayedParameter:
         self._name = name
         self._value = value
         self._delayed = dask.delayed(name=name)(lambda: self._value)()
-        self._lock = multiprocessing.Lock()
+        self._lock_context = multiprocessing.Lock()
 
     def set(self, value) -> None:
         """Permanently change the value of this parameter"""
@@ -34,7 +34,7 @@ class DelayedParameter:
     @contextmanager
     def context(self, value):
         """Change the value of this parameter within a context"""
-        with self._lock:
+        with self._lock_context:
             old_value = self._value
             self.set(value)
             yield
@@ -50,7 +50,7 @@ class DelayedParameters():
     def __init__(self):
         self._params = {}
         self._param_delayed = {}
-        self._lock = multiprocessing.Lock()
+        self._lock_context = multiprocessing.Lock()
 
     def create(self, name: str, value: Any = None) -> Delayed:
         """Create a new parameter and return a delayed object"""
@@ -87,7 +87,7 @@ class DelayedParameters():
     @contextmanager
     def context(self, d: dict):
         """Update multiple parameter values within a context"""
-        with self._lock:
+        with self._lock_context:
             old_params = dict(**self._params)
             self.update_many(d)
             yield

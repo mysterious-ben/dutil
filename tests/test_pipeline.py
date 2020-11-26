@@ -333,6 +333,42 @@ def test_dask_pipeline():
     assert output == 8
 
 
+def test_dask_pipeline_sequential_runs():
+    clear_cache(cache_dir)
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_1():
+        time.sleep(1)
+        return 5
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def load_data_2():
+        time.sleep(1)
+        return 3
+
+    @delayed()
+    @cached(folder=cache_dir)
+    def add(x, y):
+        return x + y
+
+    d1 = load_data_1()
+    d2 = load_data_2()
+    r = add(d1, d2)
+
+    start = dt.datetime.utcnow()
+    d1_, d2_ = delayed_compute((d1, d2))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert 0.95 < delay < 1.95
+
+    start = dt.datetime.utcnow()
+    (output,) = delayed_compute((r,))
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
+    assert output == 8
+
+
 def test_dask_pipeline_with_parameters():
     clear_cache(cache_dir)
 
