@@ -27,15 +27,18 @@ def _hash_obj(obj) -> str:
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     elif isinstance(obj, pd.Series):
-        xxhasher.update(obj.values.data)
+        try:
+            xxhasher.update(obj.values.data)
+        except (ValueError, AttributeError):
+            xxhasher.update(obj.astype('object').values.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     elif isinstance(obj, pd.DataFrame):
         for c in obj:
             try:
                 xxhasher.update(obj[c].values.data)
-            except ValueError:
-                xxhasher.update(obj[c].astype(str).values.data)
+            except (ValueError, AttributeError):
+                xxhasher.update(obj[c].astype('object').values.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     else:

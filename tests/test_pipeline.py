@@ -21,6 +21,7 @@ eps = 0.00001
         ([0, 1., 3232.22, 5., -1., None], 'pickle'),
         (pd.Series([0, 1, 3, 5, -1]), 'pickle'),
         (pd.Series([0, 1., 3232.22, 5., -1., np.nan]), 'pickle'),
+        (pd.Series([1, 2, 3, 4], dtype='category'), 'pickle'),
         (pd.DataFrame({
             'a': [0, 1, 3, 5, -1],
             'b': [2, 1, 0, 0, 14],
@@ -62,14 +63,20 @@ eps = 0.00001
         }), 'pickle'),
     ]
 )
-def test_cached_assert_equal(data, ftype):
+def test_cached_load_and_hash(data, ftype):
     @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
 
+    @cached(folder=cache_dir, ftype='pickle', override=False)
+    def compute_data(data):
+        return 0
+
     clear_cache(cache_dir)
-    _ = load_data().load()
     loaded = load_data().load()
+    _ = compute_data(loaded).load()
+    loaded = load_data().load()
+    _ = compute_data(loaded).load()
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -112,7 +119,7 @@ def test_cached_assert_equal(data, ftype):
         }), 'pickle', 0.1, pd.Timestamp('2018-01-01'),),
     ]
 )
-def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
+def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
     @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
@@ -170,7 +177,7 @@ def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
         }), 'pickle'),
     ]
 )
-def test_cached_with_chained_df_assert_equal(data, output, ftype):
+def test_cached_with_chained_df_load_and_hash(data, output, ftype):
     @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data():
         return data
@@ -205,7 +212,7 @@ def test_cached_with_chained_df_assert_equal(data, output, ftype):
         }), 'parquet', 0.1, pd.Timestamp('2018-01-01'),),
     ]
 )
-def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
+def test_dask_cached_with_args_kwargs_load_compute(data, ftype, eps, ts):
     @delayed()
     @cached(folder=cache_dir, ftype=ftype, override=False)
     def load_data(eps, ts):
