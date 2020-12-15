@@ -1,15 +1,17 @@
-import pytest
-import numpy as np
-import pandas as pd
 import datetime as dt
 import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
 from dask import delayed
 
-from dutil.pipeline import cached, clear_cache, DelayedParameters, DelayedParameter, delayed_cached, delayed_compute
+from dutil.pipeline import (DelayedParameter, DelayedParameters, cached,
+                            clear_cache, delayed_cached, delayed_compute)
 
-
-cache_dir = 'cache/temp/'
-eps = 0.00001
+CACHE_DIR = 'cache/temp/'
+EPS = 0.00001
 
 
 @pytest.mark.parametrize(
@@ -62,13 +64,16 @@ eps = 0.00001
         }), 'pickle'),
     ]
 )
-def test_cached_assert_equal(data, ftype):
-    @cached(folder=cache_dir, ftype=ftype, override=False)
+def test_cached_load_and_hash(data, ftype):
+    @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data():
         return data
 
-    clear_cache(cache_dir)
-    _ = load_data().load()
+    @cached(folder=CACHE_DIR, ftype='pickle', override=False)
+    def compute_data(data):
+        return 0
+
+    clear_cache(CACHE_DIR)
     loaded = load_data().load()
 
     if isinstance(data, pd.Series):
@@ -112,14 +117,14 @@ def test_cached_assert_equal(data, ftype):
         }), 'pickle', 0.1, pd.Timestamp('2018-01-01'),),
     ]
 )
-def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
-    @cached(folder=cache_dir, ftype=ftype, override=False)
+def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
+    @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
         return data
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
     _ = load_data(eps, ts=ts).load()
     loaded = load_data(eps, ts=ts).load()
 
@@ -170,16 +175,16 @@ def test_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
         }), 'pickle'),
     ]
 )
-def test_cached_with_chained_df_assert_equal(data, output, ftype):
-    @cached(folder=cache_dir, ftype=ftype, override=False)
+def test_cached_with_chained_df_load_and_hash(data, output, ftype):
+    @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data():
         return data
     
-    @cached(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def process_data(df):
         return df.dropna()
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
     df = load_data()
     _ = process_data(df).load()
 
@@ -207,13 +212,13 @@ def test_cached_with_chained_df_assert_equal(data, output, ftype):
 )
 def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
     @delayed()
-    @cached(folder=cache_dir, ftype=ftype, override=False)
+    @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
         return data
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
     r = load_data(eps, ts=ts)
     _ = r.compute()
     loaded = r.compute().load()
@@ -229,14 +234,14 @@ def test_dask_cached_with_args_kwargs_assert_equal(data, ftype, eps, ts):
 
 
 def test_cached_with_args_kwargs_partial_ignore():
-    @cached(folder=cache_dir, ignore_kwargs=['ts'])
+    @cached(folder=CACHE_DIR, ignore_kwargs=['ts'])
     def load_data(eps, ts):
         time.sleep(1.)
         assert eps > 0
         assert ts > pd.Timestamp('2000-01-01')
         return eps
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
     start = dt.datetime.utcnow()
     res1 = load_data(eps=0.1, ts=pd.Timestamp('2010-01-01')).load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
@@ -256,12 +261,12 @@ def test_cached_with_args_kwargs_partial_ignore():
 
 
 def test_cached_load_time():
-    @cached(folder=cache_dir, override=False)
+    @cached(folder=CACHE_DIR, override=False)
     def load_data():
         time.sleep(1)
         return 1
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     start = dt.datetime.utcnow()
     _ = load_data().load()
@@ -276,12 +281,12 @@ def test_cached_load_time():
 
 def test_dask_cached_load_time():
     @delayed()
-    @cached(folder=cache_dir, override=False)
+    @cached(folder=CACHE_DIR, override=False)
     def load_data():
         time.sleep(1)
         return 1
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     start = dt.datetime.utcnow()
     r = load_data()
@@ -297,22 +302,22 @@ def test_dask_cached_load_time():
 
 
 def test_dask_pipeline():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1():
         time.sleep(1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2():
         time.sleep(1)
         return 3
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -334,22 +339,22 @@ def test_dask_pipeline():
 
 
 def test_dask_pipeline_sequential_runs():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1():
         time.sleep(1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2():
         time.sleep(1)
         return 3
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -370,23 +375,23 @@ def test_dask_pipeline_sequential_runs():
 
 
 def test_dask_pipeline_with_parameters():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         time.sleep(1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         time.sleep(1)
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -401,46 +406,46 @@ def test_dask_pipeline_with_parameters():
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     params.update_many({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5})
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
-    assert abs(output - 9.5) < eps
+    assert abs(output - 9.5) < EPS
 
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
-    assert abs(output - 9.5) < eps
+    assert abs(output - 9.5) < EPS
 
 
 def test_dask_pipeline_with_parameters_create_many():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         time.sleep(1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         time.sleep(1)
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -458,25 +463,25 @@ def test_dask_pipeline_with_parameters_create_many():
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
 
 def test_dask_pipeline_with_parameters_context():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -488,34 +493,34 @@ def test_dask_pipeline_with_parameters_context():
     r = add(d1, d2)
 
     (output,) = delayed_compute((r,))
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     with params.context({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5}):
         (output,) = delayed_compute((r,))
-        assert abs(output - 9.5) < eps
+        assert abs(output - 9.5) < EPS
 
     (output,) = delayed_compute((r,))
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
 
 def test_dask_pipeline_with_parameters_private():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(_ts: dt.datetime):
         time.sleep(1)
         assert _ts > dt.datetime(2019, 1, 1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         time.sleep(1)
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -539,23 +544,23 @@ def test_dask_pipeline_with_parameters_private():
 
 
 def test_dask_pipeline_with_parameters_2():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         time.sleep(1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         time.sleep(1)
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -569,13 +574,13 @@ def test_dask_pipeline_with_parameters_2():
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     ts.set(dt.datetime(2020, 2, 1))
     fix.set(1.5)
@@ -583,31 +588,31 @@ def test_dask_pipeline_with_parameters_2():
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
-    assert abs(output - 9.5) < eps
+    assert abs(output - 9.5) < EPS
 
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
-    assert abs(output - 9.5) < eps
+    assert abs(output - 9.5) < EPS
 
 
 def test_dask_pipeline_with_parameters_2_context():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_1(ts: dt.datetime):
         assert ts > dt.datetime(2019, 1, 1)
         return 5
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data_2(fix: float):
         return 3 + fix
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def add(x, y):
         return x + y
 
@@ -618,32 +623,32 @@ def test_dask_pipeline_with_parameters_2_context():
     r = add(d1, d2)
 
     (output,) = delayed_compute((r,))
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
     with ts.context(dt.datetime(2020, 2, 1)), fix.context(1.5):
         (output,) = delayed_compute((r,))
-        assert abs(output - 9.5) < eps
+        assert abs(output - 9.5) < EPS
 
     (output,) = delayed_compute((r,))
-    assert abs(output - 8.5) < eps
+    assert abs(output - 8.5) < EPS
 
 
 def test_dask_pipeline_multiple_outputs():
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def load_data():
         # time.sleep(1)
         return [1, 1, 1, 2, 2, 2]
 
     @delayed(nout=2)
-    @cached(folder=cache_dir, nout=2)
+    @cached(folder=CACHE_DIR, nout=2)
     def split_data(data):
         return data[:3], data[3:]
 
     @delayed()
-    @cached(folder=cache_dir)
+    @cached(folder=CACHE_DIR)
     def compute_sum(arr):
         # time.sleep(1)
         return sum(arr)
@@ -664,21 +669,35 @@ def test_dask_pipeline_multiple_outputs():
 
 
 def test_delayed_cached_load_time():
-    @delayed_cached(folder=cache_dir, override=False)
+    @delayed_cached(folder=CACHE_DIR, override=False)
     def load_data():
         time.sleep(1)
         return 1
 
-    clear_cache(cache_dir)
+    clear_cache(CACHE_DIR)
 
     start = dt.datetime.utcnow()
     r = load_data()
-    r.compute()
+    _ = delayed_compute((r, ))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay > 0.95
 
     start = dt.datetime.utcnow()
     r = load_data()
-    r.compute()
+    _ = delayed_compute((r, ))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
+
+
+def test_delayed_cached_another_cache_dir():
+    another_cache_dir = 'cache/temp2/'
+    
+    @delayed_cached(folder=another_cache_dir)
+    def load_data():
+        return 1
+        
+    clear_cache(another_cache_dir)
+    r = load_data()
+    _ = delayed_compute((r, ))
+    
+    assert (Path(another_cache_dir) / 'load_data.pickle').exists()

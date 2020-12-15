@@ -1,12 +1,13 @@
-import dask
-from dask.delayed import Delayed
+import functools
+import multiprocessing
 from contextlib import contextmanager
 from pathlib import Path
-import multiprocessing
-import functools
-from typing import Any, Optional, Union, List
+from typing import Any, List, Optional, Union
 
-from dutil.pipeline._cached import CachedResultItem, cached, _kw_is_private
+import dask
+from dask.delayed import Delayed
+
+from dutil.pipeline._cached import CachedResultItem, _kw_is_private, cached
 
 
 class DelayedParameter:
@@ -17,6 +18,7 @@ class DelayedParameter:
     :param name: parameter name
     :param value: parameter value
     """
+
     def __init__(self, name, value=None):
         self._name = name
         self._value = value
@@ -41,7 +43,7 @@ class DelayedParameter:
             self.set(old_value)
 
 
-class DelayedParameters():
+class DelayedParameters:
     """A dictionary of delayed parameters
 
     Important! Methods `update` and `context` do not work with dask distributed.
@@ -55,9 +57,11 @@ class DelayedParameters():
     def create(self, name: str, value: Any = None) -> Delayed:
         """Create a new parameter and return a delayed object"""
         if name in self._params:
-            raise KeyError(f'Parameter {name} already exists')
+            raise KeyError(f"Parameter {name} already exists")
         self._params[name] = value
-        self._param_delayed[name] = dask.delayed(name=name)(lambda: self._params[name])()
+        self._param_delayed[name] = dask.delayed(name=name)(
+            lambda: self._params[name]
+        )()
         return self._param_delayed[name]
 
     def create_many(self, d: dict) -> None:
@@ -76,7 +80,7 @@ class DelayedParameters():
     def update(self, name: str, value: Any) -> None:
         """Permanently update parameter value"""
         if name not in self._params:
-            raise KeyError(f'Parameter {name} does not exist')
+            raise KeyError(f"Parameter {name} does not exist")
         self._params[name] = value
 
     def update_many(self, d: dict) -> None:
@@ -96,19 +100,19 @@ class DelayedParameters():
 
 def delayed_cached(
     name: Optional[str] = None,
-    name_prefix: str = '',
+    name_prefix: str = "",
     parameters: Optional[dict] = None,
     ignore_args: Optional[bool] = None,
     ignore_kwargs: Optional[Union[bool, List[str]]] = None,
-    folder: Union[str, Path] = 'cache',
-    ftype: str = 'pickle',
-    kwargs_sep: str = '|',
+    folder: Union[str, Path] = "cache",
+    ftype: str = "pickle",
+    kwargs_sep: str = "|",
     nout: Optional[int] = None,
     override: bool = False,
     logger=None,
 ):
     """Delayed and cache function output on the disk (dask.delayed + dutil.pipeline.cached)
-    
+
     Parameters: see dutil.pipeline.cached"""
 
     def decorator(foo):
@@ -131,11 +135,13 @@ def delayed_cached(
         @functools.wraps(foo)
         def new_foo(*args, **kwargs):
             return foo(*args, **kwargs)
+
         return new_foo
+
     return decorator
 
 
-def delayed_compute(tasks, scheduler='threads') -> tuple:
+def delayed_compute(tasks, scheduler="threads") -> tuple:
     """Compute values of Delayed objects or load it from cache"""
     results = dask.compute(*tasks, scheduler=scheduler)
     datas = tuple(r.load() if isinstance(r, CachedResultItem) else r for r in results)

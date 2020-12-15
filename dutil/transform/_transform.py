@@ -19,4 +19,4 @@ def ht(arr, n: int = 2):
     elif isinstance(arr, list) or isinstance(arr, tuple):
         return arr[:n] + arr[-n:]
     else:
-        raise ValueError(f'{arr} type is not recognized')
+        raise ValueError(f"{arr} type is not recognized")
