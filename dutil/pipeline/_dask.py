@@ -59,9 +59,7 @@ class DelayedParameters:
         if name in self._params:
             raise KeyError(f"Parameter {name} already exists")
         self._params[name] = value
-        self._param_delayed[name] = dask.delayed(name=name)(
-            lambda: self._params[name]
-        )()
+        self._param_delayed[name] = dask.delayed(name=name)(lambda: self._params[name])()
         return self._param_delayed[name]
 
     def create_many(self, d: dict) -> None:

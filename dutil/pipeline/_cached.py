@@ -32,7 +32,7 @@ def _hash_obj(obj) -> str:
         try:
             xxhasher.update(obj.values.data)
         except (ValueError, AttributeError):
-            xxhasher.update(obj.astype('object').values.data)
+            xxhasher.update(obj.astype("object").values.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     elif isinstance(obj, pd.DataFrame):
@@ -40,7 +40,7 @@ def _hash_obj(obj) -> str:
             try:
                 xxhasher.update(obj[c].values.data)
             except (ValueError, AttributeError):
-                xxhasher.update(obj[c].astype('object').values.data)
+                xxhasher.update(obj[c].astype("object").values.data)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     else:
@@ -218,9 +218,7 @@ class CachedResult:
         meta_path = _get_meta_path(cp)
         name = cp.name
         if nout is not None:
-            cp = tuple(
-                cp.parent / (cp.stem + f"__{i}" + cp.suffix) for i in range(nout)
-            )
+            cp = tuple(cp.parent / (cp.stem + f"__{i}" + cp.suffix) for i in range(nout))
         if meta_path.exists():
             meta = CacheMeta.from_file(meta_path)
         else:
@@ -240,16 +238,12 @@ class CachedResult:
         if self._cache_value is None:
             with self._lock_dump_load:
                 if self.meta.nout is None:
-                    self._cache_value = _cached_load(
-                        self.meta.ftype, self.meta.cache_path
-                    )
+                    self._cache_value = _cached_load(self.meta.ftype, self.meta.cache_path)
                 else:
                     self._cache_value = tuple(
                         _cached_load(self.meta.ftype, cp) for cp in self.meta.cache_path
                     )
-            self.logger.debug(
-                "Task {}: data has been loaded from cache".format(self.meta.name)
-            )
+            self.logger.debug("Task {}: data has been loaded from cache".format(self.meta.name))
         return self._cache_value
 
     def dump(self, data):
@@ -260,16 +254,10 @@ class CachedResult:
             if self.meta.nout is None:
                 _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
             else:
-                assert (
-                    len(self._cache_value)
-                    == len(self.meta.cache_path)
-                    == self.meta.nout
-                )
+                assert len(self._cache_value) == len(self.meta.cache_path) == self.meta.nout
                 for cv, cp in zip(self._cache_value, self.meta.cache_path):
                     _cached_save(cv, self.meta.ftype, cp)
-        self.logger.debug(
-            "Task {}: data has been saved to cache".format(self.meta.name)
-        )
+        self.logger.debug("Task {}: data has been saved to cache".format(self.meta.name))
         self.meta.dump_to_file()
 
     def __cached_hash__(self):
@@ -287,9 +275,7 @@ class CachedResult:
                 else:
                     self.meta.hash_value = tuple(_hash_obj(co) for co in cache_obj)
                 self.meta.dump_to_file()
-            self.logger.debug(
-                "Task {}: hash has been computed from data".format(self.meta.name)
-            )
+            self.logger.debug("Task {}: hash has been computed from data".format(self.meta.name))
         return self.meta.hash_value
 
     def exists(self):
@@ -391,14 +377,10 @@ def cached(
             else:
                 # if the result does not exist, generate data and save cache
                 dask_args_detected = any(isinstance(a, Delayed) for a in args)
-                dask_kwargs_detected = any(
-                    isinstance(v, Delayed) for _, v in kwargs.items()
-                )
+                dask_kwargs_detected = any(isinstance(v, Delayed) for _, v in kwargs.items())
                 if not dask_args_detected and not dask_kwargs_detected:
                     # eager load cache for all arguments
-                    args = [
-                        a.load() if isinstance(a, CachedResultItem) else a for a in args
-                    ]
+                    args = [a.load() if isinstance(a, CachedResultItem) else a for a in args]
                     kwargs = {
                         k: v.load() if isinstance(v, CachedResultItem) else v
                         for k, v in kwargs.items()

@@ -7,70 +7,109 @@ import pandas as pd
 import pytest
 from dask import delayed
 
-from dutil.pipeline import (DelayedParameter, DelayedParameters, cached,
-                            clear_cache, delayed_cached, delayed_compute)
+from dutil.pipeline import (
+    DelayedParameter,
+    DelayedParameters,
+    cached,
+    clear_cache,
+    delayed_cached,
+    delayed_compute,
+)
 
-CACHE_DIR = 'cache/temp/'
+CACHE_DIR = "cache/temp/"
 EPS = 0.00001
 
 
 @pytest.mark.parametrize(
-    'data, ftype',
+    "data, ftype",
     [
-        ((0, 1, 3, 5, -1), 'pickle'),
-        ((0, 1., 3232.22, 5., -1., None), 'pickle'),
-        ([0, 1, 3, 5, -1], 'pickle'),
-        ([0, 1., 3232.22, 5., -1., None], 'pickle'),
-        (pd.Series([0, 1, 3, 5, -1]), 'pickle'),
-        (pd.Series([0, 1., 3232.22, 5., -1., np.nan]), 'pickle'),
-        (pd.Series([1, 2, 3, 4], dtype='category'), 'pickle'),
-        (pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), 'pickle'),
-        (pd.DataFrame({
-            'a': [0, 1., 3232.22, -1., np.nan],
-            'b': ['a', 'b', 'c', 'ee', '14'],
-            'c': [dt.datetime(2018, 1, 1),
-                  dt.datetime(2019, 1, 1),
-                  dt.datetime(2020, 1, 1),
-                  dt.datetime(2021, 1, 1),
-                  dt.datetime(2022, 1, 1)],
-        }), 'pickle'),
-        (pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), 'parquet'),
-        (pd.DataFrame({
-            'a': [0, 1., 3232.22, -1., np.nan],
-            'b': ['a', 'b', 'c', 'ee', '14'],
-            'c': [dt.datetime(2018, 1, 1),
-                  dt.datetime(2019, 1, 1),
-                  dt.datetime(2020, 1, 1),
-                  dt.datetime(2021, 1, 1),
-                  dt.datetime(2022, 1, 1)],
-            'd': [pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01')],
-        }), 'parquet'),
-        (pd.DataFrame({
-            'a': [0, 1., 3232.22, -1., np.nan],
-            'b': [dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1)],
-        }), 'pickle'),
-    ]
+        ((0, 1, 3, 5, -1), "pickle"),
+        ((0, 1.0, 3232.22, 5.0, -1.0, None), "pickle"),
+        ([0, 1, 3, 5, -1], "pickle"),
+        ([0, 1.0, 3232.22, 5.0, -1.0, None], "pickle"),
+        (pd.Series([0, 1, 3, 5, -1]), "pickle"),
+        (pd.Series([0, 1.0, 3232.22, 5.0, -1.0, np.nan]), "pickle"),
+        (pd.Series([1, 2, 3, 4], dtype="category"), "pickle"),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            "pickle",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, 3232.22, -1.0, np.nan],
+                    "b": ["a", "b", "c", "ee", "14"],
+                    "c": [
+                        dt.datetime(2018, 1, 1),
+                        dt.datetime(2019, 1, 1),
+                        dt.datetime(2020, 1, 1),
+                        dt.datetime(2021, 1, 1),
+                        dt.datetime(2022, 1, 1),
+                    ],
+                }
+            ),
+            "pickle",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            "parquet",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, 3232.22, -1.0, np.nan],
+                    "b": ["a", "b", "c", "ee", "14"],
+                    "c": [
+                        dt.datetime(2018, 1, 1),
+                        dt.datetime(2019, 1, 1),
+                        dt.datetime(2020, 1, 1),
+                        dt.datetime(2021, 1, 1),
+                        dt.datetime(2022, 1, 1),
+                    ],
+                    "d": [
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                    ],
+                }
+            ),
+            "parquet",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, 3232.22, -1.0, np.nan],
+                    "b": [
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                    ],
+                }
+            ),
+            "pickle",
+        ),
+    ],
 )
 def test_cached_load_and_hash(data, ftype):
     @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data():
         return data
 
-    @cached(folder=CACHE_DIR, ftype='pickle', override=False)
+    @cached(folder=CACHE_DIR, ftype="pickle", override=False)
     def compute_data(data):
         return 0
 
@@ -91,41 +130,68 @@ def test_cached_load_and_hash(data, ftype):
 
 
 @pytest.mark.parametrize(
-    'data, ftype, eps, ts',
+    "data, ftype, eps, ts",
     [
-        (pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), 'parquet', 0.1, pd.Timestamp('2018-01-01'),),
-        (pd.DataFrame({
-            'a': [0, 1., 3232.22, -1., np.nan],
-            'b': ['a', 'b', 'c', 'ee', '14'],
-            'c': [dt.datetime(2018, 1, 1),
-                  dt.datetime(2019, 1, 1),
-                  dt.datetime(2020, 1, 1),
-                  dt.datetime(2021, 1, 1),
-                  dt.datetime(2022, 1, 1)],
-            'd': [pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01')],
-        }), 'parquet', 0.1, pd.Timestamp('2018-01-01'),),
-        (pd.DataFrame({
-            'a': [0, 1., 3232.22, -1., np.nan],
-            'b': [dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1)],
-        }), 'pickle', 0.1, pd.Timestamp('2018-01-01'),),
-    ]
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            "parquet",
+            0.1,
+            pd.Timestamp("2018-01-01"),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, 3232.22, -1.0, np.nan],
+                    "b": ["a", "b", "c", "ee", "14"],
+                    "c": [
+                        dt.datetime(2018, 1, 1),
+                        dt.datetime(2019, 1, 1),
+                        dt.datetime(2020, 1, 1),
+                        dt.datetime(2021, 1, 1),
+                        dt.datetime(2022, 1, 1),
+                    ],
+                    "d": [
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                    ],
+                }
+            ),
+            "parquet",
+            0.1,
+            pd.Timestamp("2018-01-01"),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, 3232.22, -1.0, np.nan],
+                    "b": [
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                        dt.timedelta(hours=1),
+                    ],
+                }
+            ),
+            "pickle",
+            0.1,
+            pd.Timestamp("2018-01-01"),
+        ),
+    ],
 )
 def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
     @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
-        assert ts > pd.Timestamp('2000-01-01')
+        assert ts > pd.Timestamp("2000-01-01")
         return data
 
     clear_cache(CACHE_DIR)
@@ -143,47 +209,72 @@ def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
 
 
 @pytest.mark.parametrize(
-    'data, output, ftype',
+    "data, output, ftype",
     [
-        (pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), 'parquet'),
-        (pd.DataFrame({
-            'a': [.5, np.nan, np.nan],
-            'b': ['a', 'b', '14'],
-            'c': [dt.datetime(2018, 1, 1),
-                  dt.datetime(2019, 1, 1),
-                  dt.datetime(2022, 1, 1)],
-            'd': [pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01'),
-                  pd.Timestamp('2018-01-01')],
-        }), pd.DataFrame({
-            'a': [.5],
-            'b': ['a'],
-            'c': [dt.datetime(2018, 1, 1)],
-            'd': [pd.Timestamp('2018-01-01')],
-        }), 'parquet'),
-        (pd.DataFrame({
-            'a': [0, 1., np.nan],
-            'b': [dt.timedelta(hours=1),
-                  dt.timedelta(hours=1),
-                  dt.timedelta(hours=1)],
-        }), pd.DataFrame({
-            'a': [0, 1.],
-            'b': [dt.timedelta(hours=1),
-                  dt.timedelta(hours=1)],
-        }), 'pickle'),
-    ]
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            "parquet",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0.5, np.nan, np.nan],
+                    "b": ["a", "b", "14"],
+                    "c": [
+                        dt.datetime(2018, 1, 1),
+                        dt.datetime(2019, 1, 1),
+                        dt.datetime(2022, 1, 1),
+                    ],
+                    "d": [
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                        pd.Timestamp("2018-01-01"),
+                    ],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "a": [0.5],
+                    "b": ["a"],
+                    "c": [dt.datetime(2018, 1, 1)],
+                    "d": [pd.Timestamp("2018-01-01")],
+                }
+            ),
+            "parquet",
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0, np.nan],
+                    "b": [dt.timedelta(hours=1), dt.timedelta(hours=1), dt.timedelta(hours=1)],
+                }
+            ),
+            pd.DataFrame(
+                {
+                    "a": [0, 1.0],
+                    "b": [dt.timedelta(hours=1), dt.timedelta(hours=1)],
+                }
+            ),
+            "pickle",
+        ),
+    ],
 )
 def test_cached_with_chained_df_load_and_hash(data, output, ftype):
     @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data():
         return data
-    
+
     @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def process_data(df):
         return df.dropna()
@@ -206,20 +297,27 @@ def test_cached_with_chained_df_load_and_hash(data, output, ftype):
 
 
 @pytest.mark.parametrize(
-    'data, ftype, eps, ts',
+    "data, ftype, eps, ts",
     [
-        (pd.DataFrame({
-            'a': [0, 1, 3, 5, -1],
-            'b': [2, 1, 0, 0, 14],
-        }), 'parquet', 0.1, pd.Timestamp('2018-01-01'),),
-    ]
+        (
+            pd.DataFrame(
+                {
+                    "a": [0, 1, 3, 5, -1],
+                    "b": [2, 1, 0, 0, 14],
+                }
+            ),
+            "parquet",
+            0.1,
+            pd.Timestamp("2018-01-01"),
+        ),
+    ],
 )
 def test_dask_cached_with_args_kwargs_load_compute(data, ftype, eps, ts):
     @delayed()
     @cached(folder=CACHE_DIR, ftype=ftype, override=False)
     def load_data(eps, ts):
         assert eps > 0
-        assert ts > pd.Timestamp('2000-01-01')
+        assert ts > pd.Timestamp("2000-01-01")
         return data
 
     clear_cache(CACHE_DIR)
@@ -238,27 +336,27 @@ def test_dask_cached_with_args_kwargs_load_compute(data, ftype, eps, ts):
 
 
 def test_cached_with_args_kwargs_partial_ignore():
-    @cached(folder=CACHE_DIR, ignore_kwargs=['ts'])
+    @cached(folder=CACHE_DIR, ignore_kwargs=["ts"])
     def load_data(eps, ts):
-        time.sleep(1.)
+        time.sleep(1.0)
         assert eps > 0
-        assert ts > pd.Timestamp('2000-01-01')
+        assert ts > pd.Timestamp("2000-01-01")
         return eps
 
     clear_cache(CACHE_DIR)
     start = dt.datetime.utcnow()
-    res1 = load_data(eps=0.1, ts=pd.Timestamp('2010-01-01')).load()
+    res1 = load_data(eps=0.1, ts=pd.Timestamp("2010-01-01")).load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay > 0.95
 
     start = dt.datetime.utcnow()
-    res2 = load_data(eps=0.1, ts=pd.Timestamp('2012-01-01')).load()
+    res2 = load_data(eps=0.1, ts=pd.Timestamp("2012-01-01")).load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
     assert res1 == res2
 
     start = dt.datetime.utcnow()
-    res3 = load_data(eps=0.2, ts=pd.Timestamp('2012-01-01')).load()
+    res3 = load_data(eps=0.2, ts=pd.Timestamp("2012-01-01")).load()
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay > 0.95
     assert res1 != res3
@@ -400,8 +498,8 @@ def test_dask_pipeline_with_parameters():
         return x + y
 
     params = DelayedParameters()
-    ts = params.create('ts', value=dt.datetime(2020, 1, 1))
-    fix = params.create('fix', value=0.5)
+    ts = params.create("ts", value=dt.datetime(2020, 1, 1))
+    fix = params.create("fix", value=0.5)
     d1 = load_data_1(ts)
     d2 = load_data_2(fix)
     r = add(d1, d2)
@@ -418,7 +516,7 @@ def test_dask_pipeline_with_parameters():
     assert delay < 0.95
     assert abs(output - 8.5) < EPS
 
-    params.update_many({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5})
+    params.update_many({"ts": dt.datetime(2020, 2, 1), "fix": 1.5})
     start = dt.datetime.utcnow()
     (output,) = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
@@ -454,13 +552,15 @@ def test_dask_pipeline_with_parameters_create_many():
         return x + y
 
     params = DelayedParameters()
-    params.create_many({
-        'ts': dt.datetime(2020, 1, 1),
-        'fix': 0.5,
-    })
+    params.create_many(
+        {
+            "ts": dt.datetime(2020, 1, 1),
+            "fix": 0.5,
+        }
+    )
     print(params.get_params())
-    d2 = load_data_2(params.get_delayed('fix'))
-    d1 = load_data_1(params.get_delayed('ts'))
+    d2 = load_data_2(params.get_delayed("fix"))
+    d1 = load_data_1(params.get_delayed("ts"))
     r = add(d1, d2)
 
     start = dt.datetime.utcnow()
@@ -490,8 +590,8 @@ def test_dask_pipeline_with_parameters_context():
         return x + y
 
     params = DelayedParameters()
-    ts = params.create('ts', value=dt.datetime(2020, 1, 1))
-    fix = params.create('fix', value=0.5)
+    ts = params.create("ts", value=dt.datetime(2020, 1, 1))
+    fix = params.create("fix", value=0.5)
     d1 = load_data_1(ts)
     d2 = load_data_2(fix)
     r = add(d1, d2)
@@ -499,7 +599,7 @@ def test_dask_pipeline_with_parameters_context():
     (output,) = delayed_compute((r,))
     assert abs(output - 8.5) < EPS
 
-    with params.context({'ts': dt.datetime(2020, 2, 1), 'fix': 1.5}):
+    with params.context({"ts": dt.datetime(2020, 2, 1), "fix": 1.5}):
         (output,) = delayed_compute((r,))
         assert abs(output - 9.5) < EPS
 
@@ -529,8 +629,8 @@ def test_dask_pipeline_with_parameters_private():
         return x + y
 
     params = DelayedParameters()
-    _ts = params.create('_ts', value=dt.datetime(2020, 1, 1))
-    fix = params.create('fix', value=0.5)
+    _ts = params.create("_ts", value=dt.datetime(2020, 1, 1))
+    fix = params.create("fix", value=0.5)
     d1 = load_data_1(_ts=_ts)
     d2 = load_data_2(fix=fix)
     r = add(d1, d2)
@@ -540,7 +640,7 @@ def test_dask_pipeline_with_parameters_private():
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert 0.95 < delay < 1.95
 
-    with params.context({'_ts': dt.datetime(2020, 2, 1)}):
+    with params.context({"_ts": dt.datetime(2020, 2, 1)}):
         start = dt.datetime.utcnow()
         (output,) = delayed_compute((r,))
         delay = (dt.datetime.utcnow() - start).total_seconds()
@@ -568,8 +668,8 @@ def test_dask_pipeline_with_parameters_2():
     def add(x, y):
         return x + y
 
-    ts = DelayedParameter('ts', value=dt.datetime(2020, 1, 1))
-    fix = DelayedParameter('fix', value=0.5)
+    ts = DelayedParameter("ts", value=dt.datetime(2020, 1, 1))
+    fix = DelayedParameter("fix", value=0.5)
     d1 = load_data_1(ts())
     d2 = load_data_2(fix())
     r = add(d1, d2)
@@ -620,8 +720,8 @@ def test_dask_pipeline_with_parameters_2_context():
     def add(x, y):
         return x + y
 
-    ts = DelayedParameter('ts', value=dt.datetime(2020, 1, 1))
-    fix = DelayedParameter('fix', value=0.5)
+    ts = DelayedParameter("ts", value=dt.datetime(2020, 1, 1))
+    fix = DelayedParameter("fix", value=0.5)
     d1 = load_data_1(ts())
     d2 = load_data_2(fix())
     r = add(d1, d2)
@@ -682,26 +782,26 @@ def test_delayed_cached_load_time():
 
     start = dt.datetime.utcnow()
     r = load_data()
-    _ = delayed_compute((r, ))
+    _ = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay > 0.95
 
     start = dt.datetime.utcnow()
     r = load_data()
-    _ = delayed_compute((r, ))
+    _ = delayed_compute((r,))
     delay = (dt.datetime.utcnow() - start).total_seconds()
     assert delay < 0.95
 
 
 def test_delayed_cached_another_cache_dir():
-    another_cache_dir = 'cache/temp2/'
-    
+    another_cache_dir = "cache/temp2/"
+
     @delayed_cached(folder=another_cache_dir)
     def load_data():
         return 1
-        
+
     clear_cache(another_cache_dir)
     r = load_data()
-    _ = delayed_compute((r, ))
-    
-    assert (Path(another_cache_dir) / 'load_data.pickle').exists()
+    _ = delayed_compute((r,))
+
+    assert (Path(another_cache_dir) / "load_data.pickle").exists()
