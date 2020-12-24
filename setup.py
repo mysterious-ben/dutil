@@ -47,6 +47,11 @@ setup(
         "setuptools",
         "wheel",
     ],
+    extras_require={
+        "dev": [
+            "pre-commit",
+        ]
+    },
     tests_require=[
         "pytest",
     ],
