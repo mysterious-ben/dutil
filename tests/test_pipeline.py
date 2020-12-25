@@ -381,6 +381,24 @@ def test_cached_load_time():
     assert delay < 0.95
 
 
+def test_cached_long_name_one_long_argument():
+    @cached(folder=CACHE_DIR, override=False)
+    def compute(line):
+        return len(line)
+
+    clear_cache(CACHE_DIR)
+    _ = compute("a" * 300).load()
+
+
+def test_cached_long_name_many_arguments():
+    @cached(folder=CACHE_DIR, override=False)
+    def compute(*args):
+        return sum(len(line) for line in args)
+
+    clear_cache(CACHE_DIR)
+    _ = compute(*("a" * 20 for _ in range(20))).load()
+
+
 def test_dask_cached_load_time():
     @delayed()
     @cached(folder=CACHE_DIR, override=False)

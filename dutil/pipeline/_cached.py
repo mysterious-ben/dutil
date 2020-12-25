@@ -22,8 +22,11 @@ _ = pyarrow.__version__  # set pyarrow dependency explicitly
 
 xxhasher = xxhash.xxh64(seed=42)
 
+MAX_ARG_HASH_LEN = 32  # limit length of hash string
+MAX_NAME_LEN = 240  # limit length of cache file name (not counting file extention)
 
-def _hash_obj(obj) -> str:
+
+def _hash_obj(obj, max_len: Optional[int] = MAX_ARG_HASH_LEN) -> str:
     if isinstance(obj, np.ndarray):
         xxhasher.update(obj.data)
         h = str(xxhasher.intdigest())
@@ -45,14 +48,19 @@ def _hash_obj(obj) -> str:
         xxhasher.reset()
     else:
         h = str(obj)
+    if (max_len is not None) and (len(h) > max_len):
+        xxhasher.update(h)
+        h_sffx = str(xxhasher.intdigest())
+        xxhasher.reset()
+        h = f"{h[: max_len - len(h_sffx) - 1]}-{h_sffx}"
     return h
 
 
-def _hash_obj_cached(obj) -> str:
+def _hash_obj_cached(obj, max_len: int = MAX_ARG_HASH_LEN) -> str:
     if hasattr(obj, "__cached_hash__"):
         h = obj.__cached_hash__()
     else:
-        h = _hash_obj(obj)
+        h = _hash_obj(obj, max_len)
     return h
 
 
@@ -70,6 +78,7 @@ def _get_cache_name(
     foo: Callable,
     args: list,
     kwargs: dict,
+    max_name_len: Optional[int] = MAX_NAME_LEN,
 ) -> str:
     if ignore_args is None:
         ignore_args = parameters is not None
@@ -107,6 +116,11 @@ def _get_cache_name(
     else:
         assert isinstance(ignore_kwargs, bool)
     full_name = name_prefix + "_".join(_n)
+    if (max_name_len is not None) and (len(full_name) > max_name_len):
+        xxhasher.update(full_name)
+        h_sffx = str(xxhasher.intdigest())
+        xxhasher.reset()
+        full_name = f"{full_name[: max_name_len - len(h_sffx) - 1]}-{h_sffx}"
     return full_name
 
 
@@ -353,19 +367,19 @@ def cached(
         @functools.wraps(foo)
         def new_foo(*args, **kwargs):
             result = CachedResult.from_user(
-                name,
-                name_prefix,
-                parameters,
-                ignore_args,
-                ignore_kwargs,
-                folder,
-                ftype,
-                kwargs_sep,
-                foo,
-                args,
-                kwargs,
-                logger,
-                nout,
+                name=name,
+                name_prefix=name_prefix,
+                parameters=parameters,
+                ignore_args=ignore_args,
+                ignore_kwargs=ignore_kwargs,
+                folder=folder,
+                ftype=ftype,
+                kwargs_sep=kwargs_sep,
+                foo=foo,
+                args=args,
+                kwargs=kwargs,
+                logger=logger,
+                nout=nout,
             )
             if not override and result.exists():
                 # if the result (= cache OR cache + hash) exists, do nothing - just pass it on
