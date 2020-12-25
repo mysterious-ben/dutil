@@ -5,7 +5,7 @@ import json
 import multiprocessing
 import shutil
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import dill
 
@@ -18,7 +18,7 @@ import xxhash
 from dask.delayed import Delayed
 from loguru import logger as _logger
 
-_ = pyarrow.__version__  # explicitly show pyarrow dependency
+_ = pyarrow.__version__  # set pyarrow dependency explicitly
 
 xxhasher = xxhash.xxh64(seed=42)
 
@@ -60,20 +60,17 @@ def _kw_is_private(k: str) -> bool:
     return k.startswith("_")
 
 
-def _get_cache_path(
-    name,
-    name_prefix,
-    parameters,
-    ignore_args,
-    ignore_kwargs,
-    folder,
-    ftype,
-    kwargs_sep,
-    foo,
-    args,
-    kwargs,
-) -> Path:
-    path = Path(folder)
+def _get_cache_name(
+    name: Optional[str],
+    name_prefix: str,
+    parameters: Optional[dict],
+    ignore_args: Optional[bool],
+    ignore_kwargs: Optional[bool],
+    kwargs_sep: str,
+    foo: Callable,
+    args: list,
+    kwargs: dict,
+) -> str:
     if ignore_args is None:
         ignore_args = parameters is not None
     if ignore_kwargs is None:
@@ -109,9 +106,8 @@ def _get_cache_path(
         )
     else:
         assert isinstance(ignore_kwargs, bool)
-    full_name = name_prefix + "_".join(_n) + "." + ftype
-    path = path / full_name
-    return path
+    full_name = name_prefix + "_".join(_n)
+    return full_name
 
 
 def _cached_load(ftype, path):
@@ -134,51 +130,54 @@ def _cached_save(data, ftype, path) -> None:
         raise ValueError("ftype {} is not recognized".format(ftype))
 
 
-def _get_meta_path(cache_path: Path) -> Path:
-    return cache_path.parent / (cache_path.name + ".meta")
-
-
 class CacheMeta:
     """Cache meta data (incl. hash)"""
 
     def __init__(
         self,
         name: str,
-        meta_path: Union[Path],
-        cache_path: Union[Path, Tuple[Path]],
+        folder: Union[Path, str],
         ftype: str,
         nout: Optional[int],
         hash_value: Optional[str],
     ):
         self.name = name
-        self.meta_path = meta_path
-        self.cache_path = cache_path
+        self._folder = Path(folder).absolute()
         self.ftype = ftype
         self.nout = nout
         self.hash_value = hash_value
 
-    @classmethod
-    def from_file(cls, meta_path: Path):
-        with open(meta_path, "rt") as f:
-            fields = json.load(f)
-        fields["meta_path"] = Path(fields["meta_path"])
-        if fields["nout"] is None:
-            fields["cache_path"] = Path(fields["cache_path"])
-        else:
-            fields["cache_path"] = tuple(Path(cp) for cp in fields["cache_path"])
-        for k, v in fields.items():
-            if isinstance(v, list):
-                fields[k] = tuple(v)
-        return cls(**fields)
+    @staticmethod
+    def _get_meta_path(folder: Union[Path, str], name: str) -> Path:
+        return Path(folder).absolute() / (name + ".meta")
 
-    def dump_to_file(self):
+    @property
+    def meta_path(self) -> Path:
+        return self._get_meta_path(self._folder, self.name + ".meta")
+
+    @property
+    def cache_path(self) -> Union[Path, list[Path]]:
+        if self.nout is None:
+            return self._folder / (self.name + f".{self.ftype}")
+        else:
+            return [self._folder / (self.name + f"__{i}.{self.ftype}") for i in range(self.nout)]
+
+    @classmethod
+    def from_file(cls, folder: Union[Path, str], name: str) -> CacheMeta:
+        meta_path = cls._get_meta_path(folder=folder, name=name)
+        if meta_path.exists():
+            with open(meta_path, "rt") as f:
+                fields = json.load(f)
+            # for k, v in fields.items():
+            #     if isinstance(v, list):
+            #         fields[k] = tuple(v)
+            return cls(folder=folder, **fields)
+        else:
+            raise FileNotFoundError(f"Meta file is missing: {meta_path}")
+
+    def dump_to_file(self) -> None:
         with open(self.meta_path, "wt") as f:
-            fields = dict(**self.__dict__)
-            fields["meta_path"] = str(fields["meta_path"])
-            if self.nout is None:
-                fields["cache_path"] = str(fields["cache_path"])
-            else:
-                fields["cache_path"] = [str(cp) for cp in fields["cache_path"]]
+            fields = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
             json.dump(fields, f)
 
 
@@ -202,30 +201,26 @@ class CachedResult:
         logger,
         nout,
     ):
-        cp = _get_cache_path(
+        cache_name = _get_cache_name(
             name=name,
             name_prefix=name_prefix,
             parameters=parameters,
             ignore_args=ignore_args,
             ignore_kwargs=ignore_kwargs,
-            folder=folder,
-            ftype=ftype,
             kwargs_sep=kwargs_sep,
             foo=foo,
             args=args,
             kwargs=kwargs,
         )
-        meta_path = _get_meta_path(cp)
-        name = cp.name
-        if nout is not None:
-            cp = tuple(cp.parent / (cp.stem + f"__{i}" + cp.suffix) for i in range(nout))
-        if meta_path.exists():
-            meta = CacheMeta.from_file(meta_path)
-        else:
-            meta = CacheMeta(name, meta_path, cp, ftype, nout, hash_value=None)
+        try:
+            meta = CacheMeta.from_file(folder=folder, name=cache_name)
+        except FileNotFoundError:
+            meta = CacheMeta(
+                name=cache_name, folder=folder, ftype=ftype, nout=nout, hash_value=None
+            )
         return cls(meta=meta, logger=logger)
 
-    def __init__(self, meta, logger):
+    def __init__(self, meta: CacheMeta, logger):
         self.meta = meta
         self.logger = logger
         self._cache_value = None
@@ -254,7 +249,8 @@ class CachedResult:
             if self.meta.nout is None:
                 _cached_save(self._cache_value, self.meta.ftype, self.meta.cache_path)
             else:
-                assert len(self._cache_value) == len(self.meta.cache_path) == self.meta.nout
+                assert len(self._cache_value) == self.meta.nout
+                assert len(self.meta.cache_path) == self.meta.nout
                 for cv, cp in zip(self._cache_value, self.meta.cache_path):
                     _cached_save(cv, self.meta.ftype, cp)
         self.logger.debug("Task {}: data has been saved to cache".format(self.meta.name))
@@ -283,6 +279,11 @@ class CachedResult:
 
 
 class CachedResultItem:
+    """Lazy loader for cache data
+
+    A wrapper for CachedResult class to deal with functions that return multiple outputs
+    """
+
     def __init__(self, result: CachedResult, item: Any):
         self.result = result
         self.item = item
@@ -308,7 +309,7 @@ def cached(
     name_prefix: str = "",
     parameters: Optional[dict] = None,
     ignore_args: Optional[bool] = None,
-    ignore_kwargs: Optional[Union[bool, List[str]]] = None,
+    ignore_kwargs: Optional[Union[bool, list[str]]] = None,
     folder: Union[str, Path] = "cache",
     ftype: str = "pickle",
     kwargs_sep: str = "|",
