@@ -167,7 +167,7 @@ class CacheMeta:
 
     @property
     def meta_path(self) -> Path:
-        return self._get_meta_path(self._folder, self.name + ".meta")
+        return self._get_meta_path(folder=self._folder, name=self.name)
 
     @property
     def cache_path(self) -> Union[Path, list[Path]]:
@@ -228,7 +228,8 @@ class CachedResult:
         )
         try:
             meta = CacheMeta.from_file(folder=folder, name=cache_name)
-        except FileNotFoundError:
+        except FileNotFoundError as e:
+            logger.debug(str(e))
             meta = CacheMeta(
                 name=cache_name, folder=folder, ftype=ftype, nout=nout, hash_value=None
             )
