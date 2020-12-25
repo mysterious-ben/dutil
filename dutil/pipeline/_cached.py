@@ -26,24 +26,39 @@ MAX_ARG_HASH_LEN = 32  # limit length of hash string
 MAX_NAME_LEN = 240  # limit length of cache file name (not counting file extention)
 
 
+def _hash_ndarray(arr: np.ndarray):
+    try:
+        data = arr if np.issubdtype(arr.dtype, np.number) else str(arr)
+    except TypeError:  # numpy cannot determine data type
+        data = str(arr)
+    try:
+        xxhasher.update(data)
+    except ValueError:  # cannot hash M-type array
+        data = str(arr)
+        xxhasher.update(data)
+    h = str(xxhasher.intdigest())
+    xxhasher.reset()
+    return h
+
+
 def _hash_obj(obj, max_len: Optional[int] = MAX_ARG_HASH_LEN) -> str:
     if isinstance(obj, np.ndarray):
-        xxhasher.update(obj.data)
-        h = str(xxhasher.intdigest())
-        xxhasher.reset()
+        h = _hash_ndarray(obj)
     elif isinstance(obj, pd.Series):
-        try:
-            xxhasher.update(obj.values.data)
-        except (ValueError, AttributeError):
-            xxhasher.update(obj.astype("object").values.data)
-        h = str(xxhasher.intdigest())
-        xxhasher.reset()
+        # try:
+        #     xxhasher.update(obj.values)
+        # except (TypeError, ValueError):
+        #     xxhasher.update(str(obj.values))
+        h = _hash_ndarray(obj.values)
     elif isinstance(obj, pd.DataFrame):
+        h_ = ""
         for c in obj:
-            try:
-                xxhasher.update(obj[c].values.data)
-            except (ValueError, AttributeError):
-                xxhasher.update(obj[c].astype("object").values.data)
+            # try:
+            #     xxhasher.update(obj[c].values)
+            # except (TypeError, ValueError):
+            #     xxhasher.update(str(obj[c].values))
+            h_ = h_ + _hash_ndarray(obj[c].values)
+        xxhasher.update(h_)
         h = str(xxhasher.intdigest())
         xxhasher.reset()
     else:

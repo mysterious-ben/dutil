@@ -16,8 +16,12 @@ from dutil.pipeline import (
     delayed_compute,
 )
 
-CACHE_DIR = "cache/temp/"
+CACHE_DIR = Path("cache/temp/")
 EPS = 0.00001
+
+
+def _count_cache_files() -> int:
+    return len([f for f in CACHE_DIR.iterdir() if f.is_file()])
 
 
 @pytest.mark.parametrize(
@@ -27,9 +31,12 @@ EPS = 0.00001
         ((0, 1.0, 3232.22, 5.0, -1.0, None), "pickle"),
         ([0, 1, 3, 5, -1], "pickle"),
         ([0, 1.0, 3232.22, 5.0, -1.0, None], "pickle"),
+        (np.array([0, 1.0, 3232.22, 5.0, -1.0]), "pickle"),
+        (np.array([dt.datetime(2019, 1, 1)] * 3), "pickle"),
         (pd.Series([0, 1, 3, 5, -1]), "pickle"),
         (pd.Series([0, 1.0, 3232.22, 5.0, -1.0, np.nan]), "pickle"),
         (pd.Series([1, 2, 3, 4], dtype="category"), "pickle"),
+        (pd.Series(pd.date_range("2018-01-01", periods=5)), "pickle"),
         (
             pd.DataFrame(
                 {
@@ -116,8 +123,10 @@ def test_cached_load_and_hash(data, ftype):
     clear_cache(CACHE_DIR)
     loaded = load_data().load()
     _ = compute_data(loaded).load()
+    assert _count_cache_files() == 4
     loaded = load_data().load()
     _ = compute_data(loaded).load()
+    assert _count_cache_files() == 4
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -196,7 +205,9 @@ def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
 
     clear_cache(CACHE_DIR)
     _ = load_data(eps, ts=ts).load()
+    assert _count_cache_files() == 2
     loaded = load_data(eps, ts=ts).load()
+    assert _count_cache_files() == 2
 
     if isinstance(data, pd.Series):
         pd.testing.assert_series_equal(loaded, data)
@@ -205,7 +216,7 @@ def test_cached_with_args_kwargs_load(data, ftype, eps, ts):
     elif isinstance(data, np.ndarray):
         np.testing.assert_equal(loaded, data)
     else:
-        assert loaded == data
+        assert loaded == data, str(loaded)
 
 
 @pytest.mark.parametrize(
@@ -384,19 +395,39 @@ def test_cached_load_time():
 def test_cached_long_name_one_long_argument():
     @cached(folder=CACHE_DIR, override=False)
     def compute(line):
+        time.sleep(1)
         return len(line)
 
     clear_cache(CACHE_DIR)
+
+    start = dt.datetime.utcnow()
     _ = compute("a" * 300).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    _ = compute("a" * 300).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
 
 
 def test_cached_long_name_many_arguments():
     @cached(folder=CACHE_DIR, override=False)
     def compute(*args):
+        time.sleep(1)
         return sum(len(line) for line in args)
 
     clear_cache(CACHE_DIR)
+
+    start = dt.datetime.utcnow()
     _ = compute(*("a" * 20 for _ in range(20))).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay > 0.95
+
+    start = dt.datetime.utcnow()
+    _ = compute(*("a" * 20 for _ in range(20))).load()
+    delay = (dt.datetime.utcnow() - start).total_seconds()
+    assert delay < 0.95
 
 
 def test_dask_cached_load_time():
