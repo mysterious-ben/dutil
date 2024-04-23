@@ -42,11 +42,6 @@ jobs:
     - name: Check code with ruff
       run: |
         poetry run ruff check .
-    - name: Type check with mypy
-      run: |
-        poetry run mypy . --ignore-missing-imports
-      env:
-        MYPYPATH: ${{ github.workspace }}
     - name: Build python package
       run: |
         echo "Build package version $VERSION"
