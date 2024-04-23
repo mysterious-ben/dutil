@@ -1,35 +1,45 @@
 repos:
-
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.6.4
-    hooks:
-      - id: isort
-        args: [--filter-files, --profile, "black"]
-        files: ^dutil/|^tests/
-        types: [file, python]
-
-
   - repo: https://github.com/psf/black
-    rev: stable
+    rev: 24.2.0
     hooks:
       - id: black
-        language_version: python3.8
-        files: ^dutil/|^tests/
-        types: [file, python]
-        args: [--line-length, "99"]
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 3.8.4
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.5
     hooks:
-      - id: flake8
-        args: ['--ignore=F401,E203']
+      - id: ruff
+        args: [--fix]
+      # - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports]
+        additional_dependencies: ['types-requests']
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.3.0
+    rev: v4.5.0
     hooks:
       - id: debug-statements
       - id: check-yaml
-      - id: requirements-txt-fixer
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ["--maxkb=1000"]
       - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: python
+        "types": [python]
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: poetry_export
+        name: poetry_export
+        entry: poetry export --without-hashes -o requirements.txt
+        language: system
+        pass_filenames: false

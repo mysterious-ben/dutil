@@ -40,7 +40,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     test_suite="tests",
     setup_requires=[
         "pytest-runner",

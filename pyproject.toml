@@ -1,0 +1,116 @@
+[tool.poetry]
+name = "dutil"
+version = "0.0.0"
+description = "A few useful tools for data wrangling"
+authors = ["Mysterious Ben <datascience@tuta.io>"]
+license = "Apache License, Version 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.26.4"
+pandas = "^2.2.2"
+pyarrow = "^16.0.0"
+dill = "^0.3.8"
+loguru = "^0.7.2"
+xxhash = "^3.4.1"
+dask = {extras = ["delayed"], version = "^2024.4.2"}
+fuzzywuzzy = "^0.18.0"
+python-levenshtein = "^0.25.1"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.4.1"
+black = "^24.4.0"
+pylint = "^3.1.0"
+pytest = "^8.1.1"
+mypy = "^1.9.0"
+ipykernel = "^6.29.4"
+pre-commit = "^3.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 99
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.github
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | \notebooks
+    | .ipynb_checkpoints
+    | __pycache__
+    | data
+    | logs
+    | _build
+    | buck-out
+    | build
+    | dist
+    | snapshots
+    | \.venv
+  )/
+)
+'''
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+line-length = 99
+indent-width = 4
+
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["W", "E", "F"]
+ignore = ["E203", "E731"]
+extend-select = ["I"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
