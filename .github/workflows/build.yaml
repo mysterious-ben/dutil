@@ -27,9 +27,6 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Set version (based on commit hash or tag)
-      id: vars
-      run: echo "::set-output name=version::$(git rev-parse --short "$GITHUB_SHA")"
     - name: Install poetry
       run: |
         pip install poetry
@@ -44,11 +41,8 @@ jobs:
         poetry run ruff check .
     - name: Build python package
       run: |
-        echo "Build package version $VERSION"
-        poetry version $VERSION
+        echo "Build package"
         poetry build
-      env:
-        VERSION: ${{ steps.vars.outputs.version }}
     - name: Run testsuite
       run: |
         poetry run pytest -vv

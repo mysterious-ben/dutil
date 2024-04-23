@@ -20,9 +20,6 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.9'
-    - name: Set version (based on commit hash or tag)
-      id: vars
-      run: echo "::set-output name=version::$(git rev-parse --short "$GITHUB_SHA")"
     - name: Install poetry
       run: |
         pip install poetry
@@ -38,4 +35,4 @@ jobs:
         poetry version $VERSION
         poetry publish --build
       env:
-        VERSION: ${{ steps.vars.outputs.version }}
+        VERSION: ${{ github.event.release.tag_name }}
